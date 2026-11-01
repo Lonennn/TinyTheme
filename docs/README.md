@@ -10,7 +10,6 @@
 | `images/` | README 与文档引用的截图 | 所有人 |
 | `product/` | 为什么做、给谁做、做成什么样 | 产品、设计、开发 |
 | `engineering/` | 怎么实现、怎么构建、怎么交付 | 开发、测试、发布 |
-| `decisions/` | 关键技术决策记录（ADR） | 所有人 |
 
 ## 阅读顺序
 
@@ -20,7 +19,6 @@
 - 只关心交互：`product/04-interaction-design.md`
 - 只关心图标：`product/06-icon-design.md` + `engineering/10-icon-pipeline.md`
 - 只关心构建发布：`engineering/06-build.md` + `engineering/08-delivery.md`
-- 想知道"为什么这么定"：`decisions/` 下的三篇 ADR
 
 ## 文档约定
 
