@@ -88,6 +88,19 @@ clang-tidy -p build/x64-debug src/app.cpp
 
 产物：`build/x64-release/TinyTheme.exe`（VS 生成器在 `build/vs2022-x64-release/Release/`）。
 
+### 静态分析的两个前提
+
+1. **编译数据库只有 Ninja / NMake 生成器会产出**，VS 生成器不产出 `compile_commands.json`。
+2. **必须用 MSVC 目标的 clang-tidy**，即 VS 自带的那个：
+
+```powershell
+& "C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\Llvm\x64\bin\clang-tidy.exe" `
+    -p build/tidy --quiet src\app.cpp
+```
+
+用 MinGW 目录下的 `clang-tidy`（默认 target `windows-gnu`）会报一串
+`'windows.h' file not found`，看着像代码错误，其实是工具链不匹配——两种工具的分类结果完全不同（实测 63 条 vs 109 条）。
+
 ## 7. 打包
 
 发布包是**扁平 zip**：`TinyTheme.exe` + `README.md` + `LICENSE`，外加一份 `SHA256SUMS.txt`。

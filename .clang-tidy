@@ -38,6 +38,7 @@ Checks: >
   -modernize-avoid-c-arrays,
   -modernize-macro-to-enum,
   -modernize-use-auto,
+  -modernize-use-ranges,
   -modernize-use-trailing-return-type,
   performance-*,
   -performance-enum-size,
@@ -45,8 +46,8 @@ Checks: >
   -readability-identifier-length,
   -readability-implicit-bool-cast,
   -readability-implicit-bool-conversion,
+  -readability-inconsistent-declaration-parameter-name,
   -readability-magic-numbers
-
 # 只分析本项目头文件。doctest.h 这类第三方单头文件不能进入过滤范围，
 # 否则会把它的实现整段当成待检代码。
 HeaderFilterRegex: '(^|[\\/])src[\\/]'
@@ -83,19 +84,22 @@ CheckOptions:
   - key: readability-identifier-naming.ScopedEnumConstantCase
     value: CamelCase
 
-  # 变量与参数：snake_case；成员加尾下划线
+  # 变量与参数：snake_case
   - key: readability-identifier-naming.LocalVariableCase
     value: lower_case
   - key: readability-identifier-naming.ParameterCase
     value: lower_case
+  # 公开数据结构（Config）的字段不加尾下划线，与 INI 键名一致；尾下划线只约束私有成员
   - key: readability-identifier-naming.MemberCase
     value: lower_case
-  - key: readability-identifier-naming.MemberSuffix
-    value: "_"
   - key: readability-identifier-naming.PrivateMemberCase
     value: lower_case
   - key: readability-identifier-naming.PrivateMemberSuffix
     value: "_"
+
+  # parse() 是逐个键分支的线性解析器，分支多但认知负担低；阈值放宽到 60
+  - key: readability-function-cognitive-complexity.Threshold
+    value: "60"
 
   # 常量：k + PascalCase
   - key: readability-identifier-naming.ConstexprVariableCase

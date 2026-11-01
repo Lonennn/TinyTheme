@@ -4,11 +4,10 @@
 
 #include <windows.h>
 
-#include <array>
-#include <cstdarg>
-#include <cstdio>
+#include <cstdint>
+#include <cstdio> // swprintf_s
+#include <filesystem>
 #include <string>
-#include <vector>
 
 namespace logger
 {
@@ -124,9 +123,10 @@ void append_line(const std::wstring& line)
 
         rotate_if_needed();
 
-        util::UniqueHandle file(CreateFileW(g_path.c_str(), FILE_APPEND_DATA,
-                                            FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
-                                            nullptr, OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr));
+        const util::UniqueHandle file(
+            CreateFileW(g_path.c_str(), FILE_APPEND_DATA,
+                        FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, nullptr,
+                        OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL, nullptr));
         if (file)
         {
             const std::string utf8 = util::to_utf8(line) + "\r\n";

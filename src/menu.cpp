@@ -79,7 +79,7 @@ UINT show(HWND owner, HINSTANCE instance, const config::Config& config,
     // 深色菜单跟随系统主题（任务栏颜色），与托盘图标保持一致。
     apply_menu_theme(!snapshot.system_light);
 
-    util::UniqueMenu popup(CreatePopupMenu());
+    const util::UniqueMenu popup(CreatePopupMenu());
     if (!popup)
     {
         return 0;

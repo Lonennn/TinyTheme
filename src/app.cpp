@@ -9,8 +9,7 @@
 #include <shellapi.h>
 #include <windows.h>
 
-#include <algorithm>
-#include <string_view>
+#include <string>
 
 namespace
 {
@@ -280,8 +279,10 @@ LRESULT CALLBACK App::window_proc(HWND window, UINT message, WPARAM wparam, LPAR
 
     if (message == WM_NCCREATE)
     {
+        // NOLINTNEXTLINE(performance-no-int-to-ptr) lParam 在 WM_NCCREATE 里就是 CREATESTRUCTW*
         auto* create = reinterpret_cast<CREATESTRUCTW*>(lparam);
         self = static_cast<App*>(create->lpCreateParams);
+        // NOLINTNEXTLINE(performance-no-int-to-ptr) GWLP_USERDATA 只能存整数
         SetWindowLongPtrW(window, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(self));
         if (self != nullptr)
         {
@@ -290,6 +291,7 @@ LRESULT CALLBACK App::window_proc(HWND window, UINT message, WPARAM wparam, LPAR
     }
     else
     {
+        // NOLINTNEXTLINE(performance-no-int-to-ptr) 与上面的 SetWindowLongPtrW 对称
         self = reinterpret_cast<App*>(GetWindowLongPtrW(window, GWLP_USERDATA));
     }
 
@@ -308,6 +310,7 @@ LRESULT CALLBACK App::window_proc(HWND window, UINT message, WPARAM wparam, LPAR
         return 0;
     case WM_SETTINGCHANGE:
     {
+        // NOLINTNEXTLINE(performance-no-int-to-ptr) lParam 携带的就是字符串指针
         const auto* topic = reinterpret_cast<const wchar_t*>(lparam);
         if (topic != nullptr && wcscmp(topic, L"ImmersiveColorSet") == 0)
         {

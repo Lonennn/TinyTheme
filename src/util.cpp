@@ -201,7 +201,7 @@ std::optional<std::wstring> to_wide(std::string_view text)
 
 std::wstring format_string(const wchar_t* format, ...)
 {
-    va_list args;
+    va_list args = nullptr;
     va_start(args, format);
     const int size = _vscwprintf(format, args);
     va_end(args);
@@ -214,7 +214,7 @@ std::wstring format_string(const wchar_t* format, ...)
     va_start(args, format);
     _vsnwprintf_s(buffer.data(), buffer.size(), _TRUNCATE, format, args);
     va_end(args);
-    return std::wstring(buffer.data(), static_cast<std::size_t>(size));
+    return {buffer.data(), static_cast<std::size_t>(size)};
 }
 
 std::wstring load_string(HINSTANCE instance, UINT id)
@@ -225,7 +225,7 @@ std::wstring load_string(HINSTANCE instance, UINT id)
     {
         return {};
     }
-    return std::wstring(buffer, static_cast<std::size_t>(length));
+    return {buffer, static_cast<std::size_t>(length)};
 }
 
 std::optional<std::filesystem::path> module_path()
@@ -266,9 +266,9 @@ std::wstring quote_path(const std::filesystem::path& path)
 
 bool read_file_bytes(const std::filesystem::path& path, std::vector<std::uint8_t>& data)
 {
-    UniqueHandle file(CreateFileW(path.c_str(), GENERIC_READ,
-                                  FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, nullptr,
-                                  OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr));
+    const UniqueHandle file(CreateFileW(path.c_str(), GENERIC_READ,
+                                        FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+                                        nullptr, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL, nullptr));
     if (!file)
     {
         return false;
@@ -284,8 +284,8 @@ bool read_file_bytes(const std::filesystem::path& path, std::vector<std::uint8_t
     std::size_t offset = 0;
     while (offset < data.size())
     {
-        const DWORD chunk = static_cast<DWORD>(
-            std::min<std::size_t>(data.size() - offset, kChunkSize));
+        const DWORD chunk =
+            static_cast<DWORD>(std::min<std::size_t>(data.size() - offset, kChunkSize));
         DWORD read = 0;
         if (!ReadFile(file.get(), data.data() + offset, chunk, &read, nullptr) || read == 0)
         {
@@ -298,8 +298,8 @@ bool read_file_bytes(const std::filesystem::path& path, std::vector<std::uint8_t
 
 bool write_file_bytes(const std::filesystem::path& path, const std::vector<std::uint8_t>& data)
 {
-    UniqueHandle file(CreateFileW(path.c_str(), GENERIC_WRITE, 0, nullptr, CREATE_ALWAYS,
-                                  FILE_ATTRIBUTE_NORMAL, nullptr));
+    const UniqueHandle file(CreateFileW(path.c_str(), GENERIC_WRITE, 0, nullptr, CREATE_ALWAYS,
+                                        FILE_ATTRIBUTE_NORMAL, nullptr));
     if (!file)
     {
         return false;
@@ -308,8 +308,8 @@ bool write_file_bytes(const std::filesystem::path& path, const std::vector<std::
     std::size_t offset = 0;
     while (offset < data.size())
     {
-        const DWORD chunk = static_cast<DWORD>(
-            std::min<std::size_t>(data.size() - offset, kChunkSize));
+        const DWORD chunk =
+            static_cast<DWORD>(std::min<std::size_t>(data.size() - offset, kChunkSize));
         DWORD written = 0;
         if (!WriteFile(file.get(), data.data() + offset, chunk, &written, nullptr) ||
             written != chunk)

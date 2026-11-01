@@ -1,5 +1,4 @@
 #include "app.h"
-#include "config.h"
 #include "log.h"
 #include "util.h"
 
@@ -33,6 +32,7 @@ std::filesystem::path resolve_log_path()
 
 } // namespace
 
+// NOLINTNEXTLINE(readability-non-const-parameter) wWinMain 的签名由 CRT 规定，参数不能加 const
 int WINAPI wWinMain(HINSTANCE instance, HINSTANCE previous, PWSTR command_line, int show_command)
 {
     (void) previous;
@@ -40,7 +40,7 @@ int WINAPI wWinMain(HINSTANCE instance, HINSTANCE previous, PWSTR command_line, 
 
     // GetLastError 在成功后不会被清零，必须显式重置后再判断"已存在"。
     SetLastError(ERROR_SUCCESS);
-    util::UniqueHandle mutex(CreateMutexW(nullptr, FALSE, L"Local\\TinyTheme.Instance"));
+    const util::UniqueHandle mutex(CreateMutexW(nullptr, FALSE, L"Local\\TinyTheme.Instance"));
     const DWORD mutex_error = GetLastError();
     if (mutex && mutex_error == ERROR_ALREADY_EXISTS)
     {

@@ -6,9 +6,6 @@
 #include <shlobj.h>
 #include <windows.h>
 
-#include <algorithm>
-#include <array>
-#include <chrono>
 #include <cstdint>
 #include <cstdio>
 #include <string>
@@ -43,7 +40,8 @@ bool starts_with_icase(std::wstring_view text, std::wstring_view prefix)
     {
         return false;
     }
-    // 显式传长度，避免依赖 data() 的 NUL 结尾。
+    // 显式传长度，不依赖 data() 的 NUL 结尾。
+    // NOLINTNEXTLINE(bugprone-suspicious-stringview-data-usage) 长度由第二个参数给出
     return CompareStringOrdinal(text.data(), static_cast<int>(prefix.size()), prefix.data(),
                                 static_cast<int>(prefix.size()), TRUE) == CSTR_EQUAL;
 }
@@ -306,7 +304,7 @@ Config load()
         return Config{};
     }
 
-    std::vector<std::uint8_t> bytes;
+    std::vector<std::uint8_t> bytes; // NOLINT(misc-const-correctness) 由读取函数写入
     if (!util::read_file_bytes(path, bytes))
     {
         logger::error(L"读取配置文件失败，使用默认值");
@@ -344,7 +342,7 @@ bool save(const Config& config)
     const std::string text = encode(serialize(config));
     const auto temporary = path.wstring() + L".tmp";
 
-    std::vector<std::uint8_t> bytes(text.begin(), text.end());
+    const std::vector<std::uint8_t> bytes(text.begin(), text.end());
     if (!util::write_file_bytes(temporary, bytes))
     {
         logger::error(util::format_string(L"写入临时配置失败：%s", temporary.c_str()));

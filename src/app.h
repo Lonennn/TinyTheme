@@ -11,6 +11,12 @@ class App
     explicit App(HINSTANCE instance);
     ~App();
 
+    // 持有窗口与托盘状态，不允许拷贝或移动。
+    App(const App&) = delete;
+    App& operator=(const App&) = delete;
+    App(App&&) = delete;
+    App& operator=(App&&) = delete;
+
     int run(int show_command);
 
     void on_tray_event(UINT event, LPARAM position);

@@ -64,7 +64,7 @@ ThemeSnapshot read()
 
 bool apply(bool light, bool include_system)
 {
-    const DWORD value = light ? 1u : 0u;
+    const DWORD value = light ? 1U : 0U;
 
     util::UniqueHkey key;
     HKEY raw = nullptr;
@@ -88,7 +88,7 @@ bool apply(bool light, bool include_system)
     if (include_system && !write_dword(key.get(), kSystemUsesLightTheme, value))
     {
         // 尽力回滚应用主题，避免半切换。
-        write_dword(key.get(), kAppsUseLightTheme, before.apps_light ? 1u : 0u);
+        write_dword(key.get(), kAppsUseLightTheme, before.apps_light ? 1U : 0U);
         logger::warn(L"已回滚 AppsUseLightTheme，未广播");
         return false;
     }
