@@ -1,284 +1,42 @@
 # 模块设计
 
-> 状态：草案 v0.1 ｜ 更新：2026-11-01
+> 状态：v0.1 已实现 ｜ 更新：2026-11-01
 
-## 1. 模块清单
+模块接口以头文件为准（`src/*.h`），本文只记录**职责边界**与**跨模块契约**，不复制声明。
 
-| 模块 | 职责 | 依赖 | 预估行数 |
-|---|---|---|---|
-| `main` | 入口、单实例、消息循环、窗口过程 | 全部 | 150 |
-| `app` | 状态机、模式切换、事件编排 | tray/menu/theme/scheduler/config | 300 |
-| `tray` | 托盘图标创建、更新、销毁、事件回调 | 无 | 150 |
-| `menu` | 构建菜单、勾选状态、命令分发 | config/theme | 150 |
-| `theme` | 注册表读写、广播、状态读取 | 无 | 120 |
-| `scheduler` | 计算下一次切换点、定时器管理 | solar/config | 150 |
-| `solar` | 日出日落计算 | 无 | 120 |
-| `config` | INI 读写、默认值、路径解析 | 无 | 180 |
-| `hotkey`（v0.2） | 注册 / 注销全局热键、字符串解析 | 无 | 100 |
-| `toast` | 托盘气泡提示 | tray | 60 |
-| `log` | 日志写入、轮转 | 无 | 100 |
-| `util` | RAII 句柄、字符串转换、错误码 | 无 | 80 |
+## 1. 模块与职责
 
-合计约 1660 行，不含测试与资源；v0.1 不含 `hotkey`（100 行），约 1560 行。
-
-## 2. 核心数据结构
-
-```cpp
-// theme.h
-struct ThemeSnapshot {
-    bool apps_light = true;
-    bool system_light = true;
-    bool high_contrast = false;
-};
-
-enum class ThemeMode { Light, Dark, Auto };
-
-struct AppState {
-    ThemeMode mode = ThemeMode::Light;  // v0.1 仅 Light/Dark
-    ThemeSnapshot theme{};
-    bool override_active = false;   // v0.2
-    bool override_light = true;     // v0.2
-    bool suspended = false;         // v0.2 高对比度
-};
-```
-
-```cpp
-// config.h
-struct TimeOfDay {
-    int hour = 0;
-    int minute = 0;
-};
-
-struct Config {
-    ThemeMode mode = ThemeMode::Light;   // v0.1 仅 Light/Dark；启动以注册表为准
-    bool include_system_theme = true;
-    bool autostart = true;
-    std::wstring hotkey = L"Ctrl+Alt+D";  // v0.2 起生效
-    bool use_solar = false;               // v0.2 起生效
-    TimeOfDay light_at{7, 30};
-    TimeOfDay dark_at{19, 0};
-    double latitude = 0.0;
-    double longitude = 0.0;
-    int solar_offset_minutes = 0;
-    bool show_toast = true;
-    std::wstring language = L"auto";
-    bool first_run = true;
-};
-```
-
-## 3. 模块接口
-
-### theme
-
-```cpp
-namespace theme {
-ThemeSnapshot read();
-bool apply(bool light, bool include_system);
-bool is_high_contrast();
-void broadcast_change();
-}
-```
-
-- `read`：读取两个键与高对比度状态，任何键缺失按浅色处理。
-- `apply`：写入并广播，成功返回 true；不修改内存状态，由 `App` 负责。
-
-### config
-
-```cpp
-namespace config {
-std::filesystem::path file_path();
-Config load();
-bool save(const Config&);
-bool is_portable();
-bool is_autostart_enabled();
-bool set_autostart(bool enabled);
-}
-```
-
-- `load`：文件不存在时返回默认值；解析失败时备份并返回默认值。
-- `save`：先写临时文件再原子替换，避免写入中断导致配置损坏。
-
-### scheduler
-
-```cpp
-struct SchedulePoint {
-    std::chrono::system_clock::time_point when;
-    bool light;
-};
-
-namespace scheduler {
-std::optional<SchedulePoint> next_point(const Config& cfg,
-                                        std::chrono::system_clock::time_point now);
-std::optional<bool> target_at(const Config& cfg,
-                              std::chrono::system_clock::time_point now);
-}
-```
-
-- `next_point`：返回下一次切换的时刻与目标；自动模式未配置时间时返回 `nullopt`。
-- `target_at`：判断"此刻应该是什么主题"，用于启动时校准与休眠补偿。
-
-### solar
-
-```cpp
-struct SolarTimes {
-    std::optional<std::chrono::sys_seconds> sunrise;
-    std::optional<std::chrono::sys_seconds> sunset;
-};
-
-SolarTimes compute_solar_times(double latitude, double longitude,
-                               std::chrono::year_month_day date,
-                               std::chrono::minutes utc_offset);
-```
-
-极昼 / 极夜时对应字段为 `nullopt`，由调度器回退到固定时间。
-
-### hotkey（v0.2）
-
-```cpp
-struct HotkeySpec {
-    UINT modifiers = 0;   // MOD_CONTROL | MOD_ALT | ...
-    UINT vk = 0;          // 'D', VK_F5, ...
-};
-
-std::optional<HotkeySpec> parse_hotkey(std::wstring_view text);
-std::wstring format_hotkey(const HotkeySpec& spec);
-```
-
-支持 `Ctrl` / `Alt` / `Shift` / `Win` 组合，主键支持 `A-Z`、`0-9`、`F1-F24`。
-
-### tray
-
-```cpp
-namespace tray {
-bool create(HWND owner, HINSTANCE instance);
-void set_theme(bool light);      // 切换图标资源
-void set_tooltip(std::wstring_view text);
-void show_balloon(std::wstring_view title, std::wstring_view text);
-void destroy();
-}
-```
-
-### toast
-
-```cpp
-namespace toast {
-void once(std::wstring_view key, std::wstring_view title, std::wstring_view text);
-}
-```
-
-按 key 去重，24 小时内相同 key 只提示一次。
-
-## 4. App 状态机实现
-
-`App` 持有 `AppState` 与 `Config`，所有外部事件先进入 `App` 的私有方法，再由它调用功能模块。
-
-```cpp
-class App {
-public:
-    explicit App(HINSTANCE instance);
-    int run(int show_command);
-
-    void on_tray_event(UINT event);
-    void on_hotkey();  // v0.2
-    void on_command(UINT command_id);
-    void on_setting_change();
-    void on_power_broadcast(WPARAM event);
-    void on_timer(UINT_PTR timer_id);
-    void on_second_instance();
-
-private:
-    void toggle();
-    void set_mode(ThemeMode mode);
-    void apply_theme(bool light);
-    void apply_scheduled(bool light);
-    void refresh_ui();
-    void arm_schedule();
-    void enter_override(bool light);
-    void clear_override();
-
-    HINSTANCE instance_;
-    HWND window_ = nullptr;
-    Config config_;
-    AppState state_;
-    HotkeySpec hotkey_{};  // v0.2
-};
-```
-
-关键规则：
-
-- `toggle()` 永远先 `theme::read()` 再取反，不依赖 `state_`。
-- `apply_theme()` 成功后更新 `state_.theme` 与 `config_.mode`，再 `refresh_ui()`。
-- `set_mode()` 只处理浅/深；v0.1 没有 Auto/Override/调度。
-- v0.1 不调用 `SetTimer`；`arm_schedule()` 从 v0.2 引入。
-
-## 5. 事件流示例
-
-### 热键按下（v0.2）
-
-```
-WM_HOTKEY
-  → App::on_hotkey()
-  → App::toggle()
-  → theme::read()                    // 拿到当前真实值
-  → theme::apply(!apps_light, cfg.include_system_theme)
-  → App 更新 state_.theme
-  → 若 mode == Auto：enter_override(!apps_light)
-  → App::refresh_ui()                // 图标 + 菜单
-```
-
-### 菜单选择"自动"
-
-```
-WM_COMMAND(ID_MODE_AUTO)
-  → App::set_mode(ThemeMode::Auto)
-  → clear_override()
-  → scheduler::target_at(cfg, now)
-  → 若与当前主题不一致：theme::apply()
-  → App::arm_schedule()
-  → App::refresh_ui()
-```
-
-### 定时器到期
-
-```
-WM_TIMER(id=1)
-  → App::on_timer()
-  → 读取当前时刻，scheduler::target_at() 校验
-  → 若需要切换：App::apply_scheduled(target_light)
-  → App::arm_schedule()
-```
-
-## 6. 命令 ID
-
-| 常量 | 值 | 含义 |
+| 模块 | 职责 | 不负责 |
 |---|---|---|
-| `ID_MODE_LIGHT` | 1001 | 浅色 |
-| `ID_MODE_DARK` | 1002 | 深色 |
-| `ID_MODE_AUTO` | 1003 | 自动 |
-| `ID_AUTOSTART` | 1004 | 开机启动 |
-| `ID_OPEN_CONFIG` | 1005 | 打开配置文件 |
-| `ID_ABOUT` | 1006 | 关于 |
-| `ID_EXIT` | 1007 | 退出 |
+| `main` | 入口、单实例、日志路径初始化 | 业务逻辑 |
+| `app` | 事件编排、状态机、命令分发、托盘/菜单/主题的协调者 | 直接读写注册表 |
+| `tray` | 图标的创建 / 更新 / 销毁、气泡 | 决定显示哪套图标 |
+| `menu` | 构建菜单、勾选与单选状态、深色菜单 | 执行命令 |
+| `theme` | 注册表读写、广播、状态文本 | 决定切换到哪个主题 |
+| `config` | INI 读写、路径解析、便携判定、开机自启 | 决定何时保存 |
+| `toast` | 气泡触发策略的单一入口 | 具体绘制 |
+| `log` | 分级日志、轮转、路径回退 | 决定记什么 |
+| `util` | RAII 句柄、字符串转换、错误码、已知文件夹 | 任何业务判断 |
 
-命令 ID 集中定义在 `menu.h`，避免散落。
+`Scheduler` / `Solar` / `Hotkey` 从 v0.2 引入；v0.1 不建空壳文件。
 
-## 7. 资源 ID
+## 2. 关键契约
 
-| 常量 | 值 | 含义 |
-|---|---|---|
-| `IDI_LIGHT` | 101 | 浅色图标 |
-| `IDI_DARK` | 102 | 深色图标 |
-| `IDS_APP_NAME` | 201 | 应用名 |
-| `IDS_TOAST_FIRST_RUN` | 202 | 首次运行提示 |
-| `IDS_TOAST_HOTKEY_FAIL`（v0.2） | 203 | 热键冲突提示 |
-| `IDS_TOAST_APPLY_FAIL` | 204 | 切换失败提示 |
-| `IDS_TOAST_HIGH_CONTRAST`（v0.2） | 205 | 高对比度提示 |
-| `IDS_STATUS_LIGHT` | 206 | 当前：浅色（应用 / 系统） |
-| `IDS_STATUS_DARK` | 207 | 当前：深色（应用 / 系统） |
-| `IDS_STATUS_MIXED_LIGHT_APPS` | 208 | 当前：浅色（应用）/ 深色（系统） |
-| `IDS_STATUS_MIXED_DARK_APPS` | 209 | 当前：深色（应用）/ 浅色（系统） |
-| `IDS_MENU_LIGHT` | 210 | 菜单：浅色 |
-| `IDS_MENU_DARK` | 211 | 菜单：深色 |
-| `IDS_MENU_AUTOSTART` | 212 | 菜单：开机启动 |
-| `IDS_MENU_EXIT` | 213 | 菜单：退出 |
-| `IDS_TOOLTIP_FORMAT` | 214 | 工具提示格式（`%s` 状态） |
+- **主题状态以注册表为唯一事实来源。** `App` 的 `mode` 只是当前主题的镜像：切换或收到广播后按读回值更新，不反过来用 `mode` 推导应写什么。
+- **`theme::apply` 不做内存状态更新**，成功与否由返回值告诉 `App`；失败时 `App` 保持原状态并提示一次。
+- **`config::save` 必须是全有或全无**：临时文件 + 原子替换，任何中断都不产生半写配置。
+- **`tray` 不知道模式**，只知道"当前系统主题是浅还是深"；模式只影响菜单。
+- **任何模块都不抛异常**，失败通过返回值表达；`App` 决定降级还是退出。
+
+## 3. App 的编排规则
+
+- `toggle()` 永远先 `theme::read()` 再取反，不依赖内存状态。
+- 切换成功后更新 `mode`、保存配置、刷新图标与菜单；三者顺序固定。
+- 菜单选择浅/深与左键切换走**同一条** `apply` 路径，避免两套逻辑漂移。
+- v0.1 没有 `Auto`、没有 `Override`、没有定时器；`set_mode` 只接受浅色与深色。
+
+## 4. 命令与资源 ID
+
+命令 ID 定义在 `menu.h`，资源 ID 与字符串定义在 `src/resource.h`，文案在 `res/app.rc.in`。文档不再重复这两张表——它们改起来频繁，复制一份必然过期。
+
+新增文案时：加 `IDS_*` → 在 `.rc` 里写简体中文 → 通过 `util::load_string` 取用，不在代码里硬编码。

@@ -1,13 +1,15 @@
 # 架构设计
 
-> 状态：草案 v0.1 ｜ 更新：2026-11-01
+> 状态：v0.1 已实现 ｜ 更新：2026-11-01
+
+本文只记录**为什么这样组织**与**跨模块的契约**。具体函数签名、结构体字段以 `src/` 为准，本文不复述。
 
 ## 1. 设计原则
 
 1. **单进程、单线程**：所有逻辑跑在 UI 线程的消息循环里，不引入线程与同步原语。
-2. **事件驱动**：除一次性调度定时器外，不做任何轮询。
+2. **事件驱动**：v0.1 没有任何定时器，全部由消息驱动。
 3. **状态单一来源**：注册表是主题状态的唯一事实来源，内存状态只是缓存。
-4. **失败降级**：任何一步失败都不能导致进程退出，最坏情况是"这次没切成功"。
+4. **失败降级**：单步失败不导致进程退出，最坏情况是"这次没切成功"。
 5. **无侵入**：不注入、不 hook、不重启 Explorer、不写 HKLM。
 
 ## 2. 进程与线程模型
@@ -16,164 +18,94 @@
 TinyTheme.exe
 └── 主线程
     ├── 隐藏窗口 + 消息循环
-    ├── 托盘图标（Shell_NotifyIcon）
-    ├── 全局热键（RegisterHotKey，v0.2）
-    └── 一次性调度定时器（SetTimer）
+    └── 托盘图标（Shell_NotifyIcon）
 ```
 
-没有工作线程，没有线程池，没有 COM 单元（v0.3 引入壁纸接口时再评估）。
+没有工作线程、线程池与 COM 单元。v0.2 的热键与一次性调度定时器仍挂在同一线程。
 
 ## 3. 窗口与消息模型
 
-程序启动后创建一个不可见的顶层窗口 `TinyTheme.MainWindow`，作为所有系统事件的接收端。
+程序创建一个**不可见的顶层窗口**（类名 `TinyTheme.MainWindow`）作为全部系统事件的接收端。必须是顶层窗口，不能用 `HWND_MESSAGE`：消息窗口收不到广播。
 
 | 消息 | 来源 | 处理 |
 |---|---|---|
 | `WM_APP + 1` | 第二个实例 | 弹出菜单，不切换主题 |
-| `WM_APP + 100` | 托盘回调 | 分发 `NIN_SELECT` / `WM_CONTEXTMENU` / `NIN_KEYSELECT` |
-| `WM_HOTKEY`（v0.2） | `RegisterHotKey` | 执行切换 |
-| `WM_TIMER`（id=1） | 调度器 | 执行计划切换并重排下一次 |
-| `WM_SETTINGCHANGE` | 系统或自身广播 | 主题变化：v0.1 更新状态/菜单；自身切换后刷新图标（外部变化图标刷新留 v0.2） |
-| `WM_POWERBROADCAST`（v0.2） | 系统 | 唤醒后重算计划切换点，必要时补偿 |
-| `WM_ENDSESSION` | 系统 | 保存配置 |
-| `WM_DISPLAYCHANGE` | 系统 | DPI 变化时重载托盘图标 |
+| `WM_APP + 100` | 托盘回调 | 分发 `NIN_SELECT` / `NIN_KEYSELECT` / `WM_CONTEXTMENU` |
+| `WM_SETTINGCHANGE` | 系统或自身广播 | 仅当主题名为 `ImmersiveColorSet` 时刷新状态与菜单 |
+| `WM_DISPLAYCHANGE` / `WM_DPICHANGED` | 系统 | 按新的 `SM_CXSMICON` 重载托盘图标 |
+| `WM_QUERYENDSESSION` / `WM_ENDSESSION` | 系统 | 返回 TRUE；会话结束时保存配置 |
 | `WM_CLOSE` | 系统 | 忽略，只允许通过菜单退出 |
+| `WM_HOTKEY` / `WM_TIMER` / `WM_POWERBROADCAST` | — | v0.2 |
 
 ## 4. 模块关系
 
+依赖方向是单向的：`App` 依赖各功能模块，功能模块之间不互相依赖，只通过 `App` 协调。
+
 ```
-                    ┌──────────────┐
-                    │   App        │  状态机与编排
-                    └──┬───┬───┬───┘
-          ┌────────────┘   │   └────────────┐
-          ▼                ▼                ▼
-    ┌──────────┐    ┌───────────┐    ┌──────────┐
-    │  Tray    │    │ ThemeEngine│    │ Scheduler│
-    └────┬─────┘    └─────┬─────┘    └────┬─────┘
-         │                │               │
-         ▼                ▼               ▼
-    ┌──────────┐    ┌───────────┐    ┌──────────┐
-    │  Menu    │    │ Registry  │    │  Solar   │
-    └──────────┘    │ + Broadcast│   └──────────┘
-                    └───────────┘
-    ┌──────────┐    ┌───────────┐    ┌──────────┐
-    │  Config  │    │   Hotkey  │    │   Log    │
-    └──────────┘    └───────────┘    └──────────┘
+App ──► Tray ──► (Menu)     App ──► Theme ──► 注册表 + 广播
+ │                          │
+ ├──► Config ──► INI/路径/自启
+ ├──► Toast ──► Tray
+ ├──► Log
+ └──► Util（RAII、字符串、错误码）
 ```
 
-> v0.1 只实现 `App`、`Tray`、`Menu`、`ThemeEngine`、`Config`、`Toast`、`Log`、`Util`；`Scheduler` / `Solar` / `Hotkey` 从 v0.2 引入。配置与开机自启的注册表操作放在 `Config`/`App` 内，不新增常驻模块。
-
-依赖方向：`App` 依赖各功能模块，功能模块之间不互相依赖，只通过 `App` 协调。
-
-`Hotkey` 模块自 v0.2 引入；v0.1 不注册全局热键，也不处理 `WM_HOTKEY`。
+v0.1 只有上图中的模块；`Scheduler` / `Solar` / `Hotkey` 从 v0.2 引入，不提前建空壳。
 
 ## 5. 核心数据流
 
-### 手动切换
+手动切换（v0.2 的热键走同一路径）：
 
 ```
-用户点击（v0.2 起也包含热键）
-   → App::toggle()
-   → ThemeEngine::read()          读取注册表当前值
-   → ThemeEngine::apply(!current) 写注册表
-   → broadcast_immersive_color_set() 广播
-   → Tray::refresh()              切换图标
-   → App 更新内存状态
+点击 → App::toggle()
+     → theme::read()            读注册表当前值，不用缓存
+     → theme::apply(!当前)      写 + 广播
+     → 以读回结果更新 mode 与菜单
+     → 刷新图标与工具提示
 ```
 
-### 自动切换（v0.2）
-
-```
-Scheduler 定时器到期
-   → App::on_schedule_boundary()
-   → 计算目标主题（固定时间 / 日出日落）
-   → ThemeEngine::apply(target)
-   → Scheduler::arm_next()         重排下一次
-```
-
-### 外部变更（用户在系统设置里改了主题）
+外部变更（用户在系统设置里改了主题）：
 
 ```
 WM_SETTINGCHANGE("ImmersiveColorSet")
-   → App::on_setting_change()
-   → ThemeEngine::read()
-   → 更新内存状态并刷新托盘图标
-   → 若是自动模式，重新校准定时器
+     → theme::read()
+     → 刷新菜单与工具提示；v0.1 不重载托盘图标（v0.2 的 F-11 补齐）
 ```
 
 ## 6. 启动与退出
 
-### 启动
+启动：
 
-1. 检查互斥体；已存在则发送 `WM_APP + 1` 给已有实例并退出。
-2. 加载配置（失败则使用默认值）。
-3. 创建隐藏窗口，注册消息处理。
-4. 创建托盘图标（先显示默认图标）。
-5. 注册全局热键（v0.2；失败则记录并提示，降级为仅托盘切换）。
-6. 读取当前主题，刷新图标与菜单状态。
-7. v0.1：以注册表实际主题同步 `mode` 与菜单，不写主题；v0.2 若模式为自动，计算当前应有主题并在不一致时应用。
-8. 首次运行时弹出引导气泡。
+1. 抢互斥体；已存在则给已有实例发 `WM_APP + 1` 后退出。
+2. 加载配置（失败用默认值）。
+3. 创建隐藏窗口。
+4. 创建托盘图标；失败即弹错误框并退出（没有图标就没有任何交互入口）。
+5. 读主题，以注册表实际值同步 `mode` 与菜单，**不写主题**。
+6. 首次运行弹一次引导气泡。
 
-### 退出
-
-1. 保存配置。
-2. 注销热键（v0.2）。
-3. 删除托盘图标。
-4. 销毁窗口，释放互斥体。
+退出（仅菜单触发）：保存配置 → 删除托盘图标 → 销毁窗口 → 释放互斥体。
 
 ## 7. 错误处理策略
 
 | 层级 | 策略 |
 |---|---|
 | 系统调用失败 | 记录 `GetLastError`，返回 `bool` / `std::optional`，不抛异常 |
-| 可恢复错误 | 提示一次，继续运行（如热键冲突，v0.2） |
-| 不可恢复错误 | 记录日志，退出进程，下次启动自动恢复（如窗口创建失败） |
-| 未捕获异常 | `wWinMain` 最外层兜底，写日志后退出，不弹错误框 |
+| 可恢复错误 | 提示一次，继续运行（如写注册表失败） |
+| 不可恢复错误 | 记录日志并退出，下次启动自动恢复（如窗口或托盘创建失败） |
+| 未捕获异常 | `wWinMain` 最外层兜底，写日志后返回 1 |
 
 ## 8. 可扩展点
 
 | 扩展点 | 用途 | 版本 |
 |---|---|---|
 | `IThemeAction` 接口 | 编排动作（壁纸、强调色、外部命令） | v0.3 |
-| `Scheduler` 策略 | 固定时间 / 日出日落 / 未来的地理围栏 | v0.2 |
+| `Scheduler` 策略 | 固定时间 / 日出日落 | v0.2 |
 | 字符串资源表 | 多语言 | v0.3 |
-| `ThemeEngine` 目标参数 | 仅应用主题 / 应用 + 系统 | v0.3 |
+| `theme::apply` 的目标参数 | 仅应用主题 / 应用 + 系统 | v0.3 |
 
-## 9. 目录结构
+## 9. 目录约定
 
-```
-TinyTheme/
-├── CMakeLists.txt
-├── CMakePresets.json
-├── .clang-format
-├── .clang-tidy
-├── src/
-│   ├── main.cpp          入口、消息循环、单实例
-│   ├── app.h/.cpp        状态机与编排
-│   ├── tray.h/.cpp       托盘图标
-│   ├── menu.h/.cpp       右键菜单
-│   ├── theme.h/.cpp      注册表读写与广播
-│   ├── scheduler.h/.cpp  计划切换（v0.2）
-│   ├── solar.h/.cpp      日出日落计算（v0.2）
-│   ├── config.h/.cpp     INI 读写、路径与自启
-│   ├── hotkey.h/.cpp     全局热键（v0.2）
-│   ├── toast.h/.cpp      气泡提示
-│   ├── log.h/.cpp        日志
-│   └── util.h            RAII 与字符串工具
-├── res/
-│   ├── app.rc
-│   ├── app.manifest
-│   ├── icon-light.svg    图标源文件
-│   ├── icon-dark.svg
-│   ├── icon-light.ico    由 SVG 生成，入库
-│   └── icon-dark.ico
-├── tools/
-│   ├── render-icons.ps1  SVG → 四档 PNG
-│   └── pack-icon.ps1     PNG → 多尺寸 ICO
-├── tests/
-│   ├── CMakeLists.txt
-│   ├── test_solar.cpp
-│   ├── test_config.cpp
-│   └── test_scheduler.cpp
-└── docs/
-```
+目录结构与文件清单以仓库为准，不在文档里重复维护。只有两条约定值得写下来：
+
+- 源文件放 `src/`，测试放 `tests/`，脚本放 `tools/`，资源放 `res/`。
+- 模块的文件名与头文件名一致（`theme.cpp` ↔ `theme.h`），一个模块一个命名空间。

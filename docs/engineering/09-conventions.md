@@ -13,24 +13,24 @@
 
 | 类别 | 风格 | 示例 |
 |---|---|---|
-| 类型 / 类 / 枚举 | PascalCase | `ThemeSnapshot`、`ThemeMode` |
-| 函数 / 方法 | snake_case | `apply_theme`、`read_snapshot` |
+| 类型 / 类 / 枚举 | PascalCase | `ThemeSnapshot`、`Config` |
+| 函数 / 方法 | snake_case | `apply`、`set_tooltip` |
 | 局部变量 / 参数 | snake_case | `include_system`、`light` |
 | 成员变量 | snake_case + 尾下划线 | `window_`、`config_` |
 | 常量 | `k` + PascalCase | `kPersonalize`、`kMaxRetry` |
-| 命名空间 | 小写 | `theme`、`config`、`scheduler` |
-| 宏 | 全大写 + 前缀 | `TT_ASSERT` |
-| 资源 ID | `ID` + 类型 + 名称 | `IDI_LIGHT`、`IDS_TOAST_FIRST_RUN` |
+| 命名空间 | 小写 | `theme`、`config`、`tray` |
+| 宏 | 全大写 + `TT_` 前缀 | `TT_ASSERT` |
+| 资源 ID | `ID` + 类型 + 名称 | `IDI_LIGHT`、`IDS_MENU_EXIT` |
 
-Win32 API、标准库与第三方接口沿用其原有命名，不受本表约束；本表只约束本项目定义的标识符。
+规则由 `.clang-tidy` 的 `readability-identifier-naming` 强制执行，冲突时以配置为准。资源 ID 与 doctest 宏在配置里显式豁免。
+
+Win32 API、标准库与第三方接口沿用其原有命名，不受本表约束。
 
 ## 3. 格式
 
-- 4 空格缩进，不使用 Tab。
-- 大括号采用 Allman 风格（与 Windows 代码习惯一致）。
-- 行宽 100 列。
-- 指针与引用符号靠近类型：`const Config& cfg`。
-- 由 clang-format 统一，提交前必须执行。
+4 空格缩进、Allman、100 列、指针符号靠近类型——具体规则全在 `.clang-format` 里，不在文档里再抄一遍。
+
+提交前执行 `clang-format --style=file -i`（CI 会检查 diff）。
 
 ## 4. 错误处理
 
@@ -42,10 +42,11 @@ Win32 API、标准库与第三方接口沿用其原有命名，不受本表约�
 
 ## 5. 资源管理
 
-- 所有系统句柄使用 RAII 包装：`UniqueHandle`、`UniqueHkey`、`UniqueFind`。
+- 所有系统句柄使用 RAII 包装（`util.h` 里的 `UniqueHandle` / `UniqueHkey` / `UniqueMenu` / `UniqueIcon`）。
 - 禁止裸 `CloseHandle` / `RegCloseKey` 出现在业务代码中。
-- 窗口、图标、菜单的销毁顺序在 `App` 退出流程中显式约定。
-- 不使用 `new` / `delete`；需要动态内存时使用 `std::make_unique`。
+- `UniqueHandle` 会把 `INVALID_HANDLE_VALUE` 归一化为空：`CreateFileW` 之类的 API 失败时返回的不是 `nullptr`，别自己写 `if (handle != INVALID_HANDLE_VALUE)`。
+- 窗口、图标、菜单的销毁顺序在 `App::shutdown` 中集中处理。
+- 不使用 `new` / `delete`；需要动态内存时用 `std::make_unique`。
 
 ## 6. 字符串
 

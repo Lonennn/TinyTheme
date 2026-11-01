@@ -25,50 +25,20 @@
 
 ## 2. CI 流水线
 
-文件：`.github/workflows/ci.yml`
-
-```yaml
-name: ci
-on:
-  push:
-    branches: [main]
-    tags: ['v*']
-  pull_request:
-
-jobs:
-  build:
-    runs-on: windows-2025
-    strategy:
-      matrix:
-        preset: [x64-release, arm64-release]
-    steps:
-      - uses: actions/checkout@v4
-      - uses: ilammy/msvc-dev-cmd@v1
-        with:
-          arch: ${{ startsWith(matrix.preset, 'arm64') && 'arm64' || 'x64' }}
-      - name: Configure
-        run: cmake --preset ${{ matrix.preset }}
-      - name: Build
-        run: cmake --build --preset ${{ matrix.preset }}
-      - name: Test
-        if: matrix.preset == 'x64-release'
-        run: ctest --preset x64-release
-      - name: Upload
-        uses: actions/upload-artifact@v4
-        with:
-          name: TinyTheme-${{ matrix.preset }}
-          path: build/${{ matrix.preset }}/TinyTheme.exe
-```
-
-### 阶段
+定义在 `.github/workflows/ci.yml`，不在这里复制。要点：
 
 | 阶段 | 触发 | 内容 |
 |---|---|---|
-| 校验 | PR / push | 格式检查、构建、单元测试、体积记录 |
-| 打包 | tag | 构建 x64 + ARM64、生成 zip、生成 SHA256 |
+| 校验 | PR / push | 格式检查、构建、单元测试、依赖与导入检查、体积记录 |
+| 打包 | tag | 构建 x64 与 ARM64、生成 zip、生成 SHA256 |
 | 签名 | tag | 对 exe 与 zip 签名 |
 | 发布 | tag | 创建 GitHub Release、上传产物、更新 CHANGELOG |
 | 分发 | 发布后 | 提交 winget manifest、更新 Scoop bucket |
+
+两条容易忘的约束：
+
+- CI 用 **Ninja** 预设，因为 Visual Studio 生成器不产出 `compile_commands.json`，clang-tidy 门禁会失效。
+- 体积只记录不阻断，作为版本间对比基线。
 
 ## 3. 代码签名
 
@@ -87,28 +57,21 @@ jobs:
 ### GitHub Releases
 
 - 产物：`TinyTheme-v0.1.0-x64.zip`、`TinyTheme-v0.1.0-arm64.zip`、`SHA256SUMS.txt`。
-- zip 内：`TinyTheme.exe`、`README.md`、`LICENSE`。
-- Release 说明包含：变更摘要、已知问题、系统要求。
+- zip 内容与打包方式见 [构建 §7](06-build.md#7-打包)。
+- Release 说明包含：变更摘要、已知问题、系统要求，并引用功能编号（如 `F-03`）。
 
 ### winget
 
-```powershell
-wingetcreate update TinyTheme.TinyTheme --version 0.1.0 `
-  --urls https://github.com/<owner>/TinyTheme/releases/download/v0.1.0/TinyTheme-v0.1.0-x64.zip `
-  --submit
-```
-
-manifest 使用 `portable` 类型，安装后由 winget 管理路径。
+`wingetcreate update TinyTheme.TinyTheme --version <版本> --urls <zip 地址> --submit`，
+manifest 用 `portable` 类型。
 
 ### Scoop
 
-在自有 bucket 中维护 `tinytheme.json`，`checkver` 指向 GitHub Releases。
+在自有 bucket 维护 `tinytheme.json`，`checkver` 指向 GitHub Releases。
 
 ### 暂不提供
 
-- Microsoft Store（MSIX 打包与审核成本高）。
-- 安装器（保持绿色版）。
-- 自动更新（v1 之前只做"检查更新"跳转）。
+Microsoft Store（MSIX 与审核成本高）、安装器（保持绿色版）、自动更新。
 
 ## 5. 发布检查清单
 
@@ -132,9 +95,8 @@ manifest 使用 `portable` 类型，安装后由 winget 管理路径。
 
 ## 7. 更新机制
 
-- v1 之前不实现自动更新。
-- 菜单"关于"页提供"检查更新"链接，打开 GitHub Releases 页面。
-- 用户手动下载覆盖 exe 即可，配置与日志保留。
+- v1 之前不实现自动更新；用户手动下载覆盖 exe，配置与日志保留。
+- v0.2 起在"关于"菜单提供"检查更新"链接，打开 GitHub Releases 页面（v0.1 无"关于"项）。
 
 ## 8. 文档与发布同步
 
