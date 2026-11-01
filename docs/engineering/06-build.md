@@ -145,7 +145,8 @@ v0.1.0（2026-11-01，x64 Release，MSVC 19.44）：
 | 现象 | 原因 | 处理 |
 |---|---|---|
 | `cl.exe` 找不到 | 没进 vcvars 环境 | 用 `tools/build.ps1`，或 Native Tools 命令提示符 |
-| 中文乱码 | 源码编码或 `/utf-8` 缺失 | 统一 UTF-8 无 BOM + `/utf-8` |
+| 源码里的中文变成乱码 | 源码编码或 `/utf-8` 缺失 | 统一 UTF-8 无 BOM + `/utf-8` |
+| 构建日志刷出几千行“注意: 包含文件:” | 控制台代码页不是 65001：`cl.exe` 的本地化提示是 UTF-8，CMake 却按代码页解码，检测出的 `/showIncludes` 前缀与实际输出不符，ninja 匹配不上就原样打印 | `tools/build.ps1` 已在构建期间切到 65001 并还原；手工调 `cmake` 时先 `chcp 65001`，再删掉 `build/` 让前缀重新检测 |
 | `wWinMain` 链接错误 | 目标没加 `WIN32` | 检查 `add_executable(... WIN32 ...)` |
 | 资源编译失败 | 图标路径不对 | `.rc` 由 CMake 生成，确认 `res/*.ico` 存在 |
 | ARM64 链接失败 | 没装 ARM64 组件 | 在 VS Installer 里补装，或交给 CI |

@@ -14,7 +14,14 @@ param(
 $ErrorActionPreference = 'Stop'
 
 $root = Split-Path -Parent $PSScriptRoot
-$buildDir = Join-Path $root "build\$Preset-$Generator"
+# Ninja 走 CMakePresets.json 里的 binaryDir；NMake / VS 生成器没有预设，用带后缀的目录区分。
+# 两者不一致会让 -Clean 删错目录，脏缓存（含被解坏的 /showIncludes 前缀）就一直留着。
+$buildDir = if ($Generator -eq 'ninja') {
+    Join-Path $root "build\$Preset"
+}
+else {
+    Join-Path $root "build\$Preset-$Generator"
+}
 
 if ($Clean -and (Test-Path -LiteralPath $buildDir)) {
     $resolved = (Resolve-Path -LiteralPath $buildDir).Path
@@ -81,7 +88,22 @@ if ($Test) {
 
 $commandLine = $commands -join ' && '
 Write-Host "> $commandLine"
-& cmd.exe /c $commandLine
-if ($LASTEXITCODE -ne 0) {
-    exit $LASTEXITCODE
+
+# cl.exe 的本地化提示（包括 /showIncludes 的“注意: 包含文件:”前缀）输出 UTF-8，
+# 而 CMake 检测该前缀时按控制台代码页解码。代码页不是 65001 时前缀被解坏，
+# ninja 匹配不上，于是把每一条 include 都刷进构建日志（一次干净构建数千行）。
+$consoleCodePage = (chcp) -replace '\D', ''
+& cmd.exe /c 'chcp 65001 >nul'
+try {
+    & cmd.exe /c $commandLine
+    $exitCode = $LASTEXITCODE
+}
+finally {
+    if ($consoleCodePage) {
+        & cmd.exe /c "chcp $consoleCodePage >nul"
+    }
+}
+
+if ($exitCode -ne 0) {
+    exit $exitCode
 }
