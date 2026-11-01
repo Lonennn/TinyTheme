@@ -13,7 +13,7 @@
 | SDK | Windows SDK | 10.0.26100 |
 | UI | 原生 Win32 API | — |
 | 构建系统 | CMake + Ninja | CMake 3.28+，Ninja 1.11+ |
-| 单元测试 | doctest | 2.4.x（单头文件） |
+| 单元测试 | doctest | 2.5.3（本地 vendor，单头文件） |
 | 格式化 | clang-format | 18+ |
 | 静态分析 | clang-tidy | 18+ |
 | CI | GitHub Actions | windows-2025 |
@@ -67,8 +67,8 @@
 
 ## 6. 测试：doctest
 
-- 单头文件，编译进独立的 `tests` 目标，不进入发布物。
-- 覆盖纯逻辑：日出日落计算、配置解析、调度时间计算、状态机转移；热键字符串解析自 v0.2 纳入。
+- 单头文件，编译进独立的 `tests` 目标，不进入发布物；头文件 vendor 在 `tests/third_party/doctest/`。
+- 覆盖纯逻辑：v0.1 为配置解析、模式映射；日出日落、调度、热键解析自 v0.2 纳入。
 - 通过 `ctest` 驱动，CI 中作为合并门禁。
 
 ## 7. 工具链

@@ -15,11 +15,11 @@
 
 ### 格式
 
-标准 INI，UTF-8 带 BOM 或 UTF-16 LE 均可，读取时统一转换。使用 `GetPrivateProfileStringW` / `WritePrivateProfileStringW`。
+标准 INI，**UTF-8 with BOM** 写出；读取兼容 UTF-8 BOM 与无 BOM。v0.1 不再支持 UTF-16，也不使用 `GetPrivateProfileStringW`（该 API 对 UTF-8 不可靠），而是用自研的小型 INI 解析器统一处理编码、校验与注释。
 
 ```ini
 [general]
-mode=auto
+mode=dark
 include_system_theme=1
 autostart=1
 ; F-02 于 v0.2 引入，v0.1 不读取该键
@@ -43,7 +43,7 @@ first_run=0
 
 | 键 | 类型 | 默认 | 说明 |
 |---|---|---|---|
-| `mode` | enum | `auto` | `light` / `dark` / `auto` |
+| `mode` | enum | `light` | v0.1 仅 `light` / `dark`；当前主题的持久化镜像，启动以注册表为准 |
 | `include_system_theme` | bool | `1` | 是否同时切换系统主题 |
 | `autostart` | bool | `1` | 是否写入开机启动项 |
 | `hotkey` | string | `Ctrl+Alt+D` | 全局热键，空字符串表示禁用；v0.2 起读取 |
@@ -59,10 +59,12 @@ first_run=0
 
 ### 读写规则
 
-- 读取：逐键读取并校验范围，非法值回退默认并记录日志，不整体失败。
-- 写入：先写 `config.ini.tmp`，再 `MoveFileExW(..., MOVEFILE_REPLACE_EXISTING)` 原子替换。
-- 损坏处理：解析失败时将原文件重命名为 `config.ini.bak.<时间戳>`，重建默认配置。
-- 不保存派生状态（如"当前是深色"），主题状态以注册表为准。
+- 读取：UTF-8 解码（BOM 可选），逐键读取并校验范围；非法值回退默认并记录日志，不整体失败。
+- 写入：先写 `config.ini.tmp`，`FlushFileBuffers` 后 `MoveFileExW(..., MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH)` 原子替换；文件带 UTF-8 BOM。
+- 损坏处理：不可解码、缺失 `[general]` 或结构性损坏时，将原文件重命名为 `config.ini.bak.<时间戳>`，重建默认配置。
+- 启动时清理遗留 `config.ini.tmp`，不把它当配置。
+- 便携目录不可写：回退到 `%APPDATA%\TinyTheme\config.ini` 并记录 `warn`。
+- 不保存派生状态（如"当前是深色"）：`mode` 只是当前主题的镜像，主题以注册表为准。
 
 ## 2. 日志
 
@@ -114,7 +116,9 @@ if (GetLastError() == ERROR_ALREADY_EXISTS) {
 - 便携模式下首次运行不自动开启，仅在用户手动勾选时写入。
 - 取消勾选时删除该值，不写空字符串。
 
-## 5. 调度器
+## 5. 调度器（v0.2）
+
+> v0.1 不包含本节实现：没有自动模式、没有定时器、没有目标时刻计算。
 
 ### 定时器策略
 

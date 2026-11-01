@@ -20,6 +20,8 @@ Checks: >
   -cppcoreguidelines-avoid-do-while,
   -cppcoreguidelines-avoid-magic-numbers,
   -cppcoreguidelines-avoid-non-const-global-variables,
+  -cppcoreguidelines-macro-to-enum,
+  -cppcoreguidelines-macro-usage,
   -cppcoreguidelines-narrowing-conversions,
   -cppcoreguidelines-non-private-member-variables-in-classes,
   -cppcoreguidelines-owning-memory,
@@ -34,9 +36,11 @@ Checks: >
   -misc-non-private-member-variables-in-classes,
   modernize-*,
   -modernize-avoid-c-arrays,
+  -modernize-macro-to-enum,
   -modernize-use-auto,
   -modernize-use-trailing-return-type,
   performance-*,
+  -performance-enum-size,
   readability-*,
   -readability-identifier-length,
   -readability-implicit-bool-cast,
@@ -48,7 +52,7 @@ Checks: >
 HeaderFilterRegex: '(^|[\\/])src[\\/]'
 
 # 待 .clang-format 落地后改成 file，让 --fix 与格式化规则一致。
-FormatStyle: none
+FormatStyle: file
 
 CheckOptions:
   # 类型：PascalCase；函数与方法：snake_case
@@ -111,13 +115,14 @@ CheckOptions:
   - key: readability-identifier-naming.ClassConstantPrefix
     value: k
 
-  # 宏：全大写 + TT_ 前缀；doctest 的配置宏例外
+  # 宏：全大写 + TT_ 前缀；doctest 与 Win32 资源 ID 例外
+  # （资源 ID 沿用 IDI_/IDS_ 约定，见 engineering/09-conventions.md 第 2 节）
   - key: readability-identifier-naming.MacroDefinitionCase
     value: UPPER_CASE
   - key: readability-identifier-naming.MacroDefinitionPrefix
     value: TT_
   - key: readability-identifier-naming.MacroDefinitionIgnoredRegexp
-    value: "DOCTEST_.*"
+    value: "(DOCTEST_.*|ID[SI]_.*|IDC_.*|IDD_.*)"
 
   # wWinMain / main 及其同类入口不参与函数命名检查
   - key: readability-identifier-naming.IgnoreMainLikeFunctions

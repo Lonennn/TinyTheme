@@ -34,11 +34,11 @@ struct ThemeSnapshot {
 enum class ThemeMode { Light, Dark, Auto };
 
 struct AppState {
-    ThemeMode mode = ThemeMode::Auto;
-    bool override_active = false;   // 自动模式下的临时覆盖
-    bool override_light = true;
+    ThemeMode mode = ThemeMode::Light;  // v0.1 仅 Light/Dark
     ThemeSnapshot theme{};
-    bool suspended = false;         // 高对比度导致暂停
+    bool override_active = false;   // v0.2
+    bool override_light = true;     // v0.2
+    bool suspended = false;         // v0.2 高对比度
 };
 ```
 
@@ -50,11 +50,11 @@ struct TimeOfDay {
 };
 
 struct Config {
-    ThemeMode mode = ThemeMode::Auto;
+    ThemeMode mode = ThemeMode::Light;   // v0.1 仅 Light/Dark；启动以注册表为准
     bool include_system_theme = true;
     bool autostart = true;
     std::wstring hotkey = L"Ctrl+Alt+D";  // v0.2 起生效
-    bool use_solar = false;
+    bool use_solar = false;               // v0.2 起生效
     TimeOfDay light_at{7, 30};
     TimeOfDay dark_at{19, 0};
     double latitude = 0.0;
@@ -90,6 +90,8 @@ std::filesystem::path file_path();
 Config load();
 bool save(const Config&);
 bool is_portable();
+bool is_autostart_enabled();
+bool set_autostart(bool enabled);
 }
 ```
 
@@ -205,9 +207,9 @@ private:
 关键规则：
 
 - `toggle()` 永远先 `theme::read()` 再取反，不依赖 `state_`。
-- `apply_theme()` 成功后更新 `state_.theme` 并调用 `refresh_ui()`。
-- `set_mode()` 切换模式时清除 Override，并重排定时器。
-- `arm_schedule()` 先 `KillTimer` 再 `SetTimer`，保证只有一个定时器。
+- `apply_theme()` 成功后更新 `state_.theme` 与 `config_.mode`，再 `refresh_ui()`。
+- `set_mode()` 只处理浅/深；v0.1 没有 Auto/Override/调度。
+- v0.1 不调用 `SetTimer`；`arm_schedule()` 从 v0.2 引入。
 
 ## 5. 事件流示例
 
@@ -270,4 +272,13 @@ WM_TIMER(id=1)
 | `IDS_TOAST_FIRST_RUN` | 202 | 首次运行提示 |
 | `IDS_TOAST_HOTKEY_FAIL`（v0.2） | 203 | 热键冲突提示 |
 | `IDS_TOAST_APPLY_FAIL` | 204 | 切换失败提示 |
-| `IDS_TOAST_HIGH_CONTRAST` | 205 | 高对比度提示 |
+| `IDS_TOAST_HIGH_CONTRAST`（v0.2） | 205 | 高对比度提示 |
+| `IDS_STATUS_LIGHT` | 206 | 当前：浅色（应用 / 系统） |
+| `IDS_STATUS_DARK` | 207 | 当前：深色（应用 / 系统） |
+| `IDS_STATUS_MIXED_LIGHT_APPS` | 208 | 当前：浅色（应用）/ 深色（系统） |
+| `IDS_STATUS_MIXED_DARK_APPS` | 209 | 当前：深色（应用）/ 浅色（系统） |
+| `IDS_MENU_LIGHT` | 210 | 菜单：浅色 |
+| `IDS_MENU_DARK` | 211 | 菜单：深色 |
+| `IDS_MENU_AUTOSTART` | 212 | 菜单：开机启动 |
+| `IDS_MENU_EXIT` | 213 | 菜单：退出 |
+| `IDS_TOOLTIP_FORMAT` | 214 | 工具提示格式（`%s` 状态） |

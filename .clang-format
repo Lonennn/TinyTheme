@@ -1,31 +1,14 @@
 ---
-BasedOnStyle: WebKit
+BasedOnStyle: Microsoft
 IndentWidth: 4
-IncludeCategories:
-  - Regex: '^((<|")(glad)/)'
-    Priority:        0
-    SortPriority:    0
-    CaseSensitive:   false
-AlwaysBreakTemplateDeclarations: true
-AllowShortFunctionsOnASingleLine: InlineOnly
-AllowShortLambdasOnASingleLine: Inline
+ColumnLimit: 100
+UseTab: Never
+BreakBeforeBraces: Allman
+PointerAlignment: Left
+DerivePointerAlignment: false
+AllowShortFunctionsOnASingleLine: Empty
+AllowShortIfStatementsOnASingleLine: Never
+AllowShortLoopsOnASingleLine: false
+AlwaysBreakTemplateDeclarations: Yes
 SpaceAfterCStyleCast: true
-IndentAccessModifiers: false
-EmptyLineBeforeAccessModifier: LogicalBlock
-AccessModifierOffset: -4
-# SeparateDefinitionBlocks: true
-# IndentCaseLabels: true
-BreakBeforeBraces: Custom
-BraceWrapping:
-    AfterNamespace: true
-    AfterClass: true
-    AfterFunction: true
-
-# BreakConstructorInitializersBeforeComma: true
-ConstructorInitializerAllOnOneLineOrOnePerLine: true
-# BinPackParameters: false
-# ReflowComments: false
-# ObjCBlockIndentWidth: 2
-
 InsertNewlineAtEOF: true
-

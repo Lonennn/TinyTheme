@@ -1,0 +1,112 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+
+jobs:
+  build:
+    runs-on: windows-2025
+    strategy:
+      fail-fast: false
+      matrix:
+        preset: [x64-release, arm64-release]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup MSVC
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: ${{ startsWith(matrix.preset, 'arm64') && 'arm64' || 'x64' }}
+
+      - name: Configure
+        run: cmake --preset ${{ matrix.preset }}
+
+      - name: Build
+        run: cmake --build --preset ${{ matrix.preset }}
+
+      - name: Test
+        if: matrix.preset == 'x64-release'
+        run: ctest --preset x64-release
+
+      - name: Format check
+        if: matrix.preset == 'x64-release'
+        shell: pwsh
+        run: |
+          $files = Get-ChildItem src,tests -Recurse -Include *.cpp,*.h |
+            Where-Object { $_.FullName -notmatch 'third_party' }
+          $bad = @()
+          foreach ($f in $files) {
+            $formatted = & clang-format --style=file $f.FullName | Out-String
+            $original = Get-Content -Raw $f.FullName
+            if (($formatted -replace "`r`n","`n").TrimEnd() -ne ($original -replace "`r`n","`n").TrimEnd()) {
+              $bad += $f.FullName
+            }
+          }
+          if ($bad.Count -gt 0) {
+            $bad | ForEach-Object { Write-Host "需要 clang-format：$_" }
+            exit 1
+          }
+
+      - name: Dependency check
+        if: matrix.preset == 'x64-release'
+        shell: pwsh
+        run: |
+          $exe = 'build/x64-release/TinyTheme.exe'
+          $imports = & dumpbin /dependents $exe
+          $imports | Write-Host
+          if ($imports -match 'VCRUNTIME|MSVCP') {
+            Write-Error '出现了动态 C 运行库依赖，/MT 未生效'
+            exit 1
+          }
+          $network = & dumpbin /imports $exe | Select-String -Pattern 'WS2_32|WININET|WINHTTP|URLMON'
+          if ($network) {
+            Write-Error '出现网络相关导入'
+            exit 1
+          }
+
+      - name: Size report
+        if: matrix.preset == 'x64-release'
+        shell: pwsh
+        run: |
+          $size = (Get-Item 'build/x64-release/TinyTheme.exe').Length
+          Write-Host "TinyTheme.exe = $size bytes"
+          $line = "| $(Get-Date -Format 'yyyy-MM-dd') | $size | $env:GITHUB_SHA |"
+          Add-Content -LiteralPath $env:GITHUB_STEP_SUMMARY -Value "`n`n| 日期 | 体积(字节) | 提交 |`n|---|---|---|`n$line"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: TinyTheme-${{ matrix.preset }}
+          path: build/${{ matrix.preset }}/TinyTheme.exe
+          if-no-files-found: error
+
+  package:
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: windows-2025
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download x64 artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: TinyTheme-x64-release
+          path: build/x64-release
+
+      - name: Package
+        shell: pwsh
+        run: |
+          $version = $env:GITHUB_REF_NAME -replace '^v', ''
+          pwsh -File tools/package.ps1 -Version $version -Exe build/x64-release/TinyTheme.exe -Generator ninja
+
+      - name: Upload zip
+        uses: actions/upload-artifact@v4
+        with:
+          name: TinyTheme-release
+          path: |
+            dist/*.zip
+            dist/SHA256SUMS.txt

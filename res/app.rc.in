@@ -1,0 +1,57 @@
+#pragma code_page(65001)
+
+#include <windows.h>
+#include "resource.h"
+#include "version.h"
+
+IDI_LIGHT ICON "@CMAKE_CURRENT_SOURCE_DIR@/res/icon-light.ico"
+IDI_DARK ICON "@CMAKE_CURRENT_SOURCE_DIR@/res/icon-dark.ico"
+
+STRINGTABLE
+LANGUAGE LANG_CHINESE, SUBLANG_CHINESE_SIMPLIFIED
+BEGIN
+    IDS_APP_NAME "TinyTheme"
+    IDS_TOAST_FIRST_RUN "左键单击切换主题，右键查看更多"
+    IDS_TOAST_HOTKEY_FAIL "快捷键被其他程序占用，请在配置文件中修改"
+    IDS_TOAST_APPLY_FAIL "切换失败，请查看日志"
+    IDS_TOAST_HIGH_CONTRAST "高对比度模式已开启，主题切换暂停"
+    IDS_STATUS_LIGHT "当前：浅色（应用 / 系统）"
+    IDS_STATUS_DARK "当前：深色（应用 / 系统）"
+    IDS_STATUS_MIXED_LIGHT_APPS "当前：浅色（应用）/ 深色（系统）"
+    IDS_STATUS_MIXED_DARK_APPS "当前：深色（应用）/ 浅色（系统）"
+    IDS_MENU_LIGHT "浅色"
+    IDS_MENU_DARK "深色"
+    IDS_MENU_AUTOSTART "开机启动"
+    IDS_MENU_EXIT "退出"
+    IDS_TOOLTIP_FORMAT "TinyTheme — %s（左键切换）"
+    IDS_ERR_TRAY "无法创建托盘图标。请确认资源管理器（explorer.exe）正在运行，然后重新启动 TinyTheme。详细信息见日志。"
+    IDS_ERR_STARTUP "TinyTheme 启动失败。详细信息见日志。"
+END
+
+VS_VERSION_INFO VERSIONINFO
+FILEVERSION TT_VERSION_MAJOR,TT_VERSION_MINOR,TT_VERSION_PATCH,0
+PRODUCTVERSION TT_VERSION_MAJOR,TT_VERSION_MINOR,TT_VERSION_PATCH,0
+FILEFLAGSMASK 0x3fL
+FILEFLAGS 0x0L
+FILEOS 0x40004L
+FILETYPE 0x1L
+FILESUBTYPE 0x0L
+BEGIN
+    BLOCK "StringFileInfo"
+    BEGIN
+        BLOCK "080404b0"
+        BEGIN
+            VALUE "CompanyName", "TinyTheme"
+            VALUE "FileDescription", "TinyTheme"
+            VALUE "FileVersion", TT_VERSION_STRING
+            VALUE "InternalName", "TinyTheme"
+            VALUE "OriginalFilename", "TinyTheme.exe"
+            VALUE "ProductName", "TinyTheme"
+            VALUE "ProductVersion", TT_VERSION_STRING
+        END
+    END
+    BLOCK "VarFileInfo"
+    BEGIN
+        VALUE "Translation", 0x804, 1200
+    END
+END

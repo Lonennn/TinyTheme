@@ -32,13 +32,15 @@ TinyTheme/
 | 目标 | 类型 | 说明 |
 |---|---|---|
 | `TinyTheme` | `WIN32` 可执行文件 | 发布物 |
-| `tinytheme_tests` | 控制台可执行文件 | 单元测试，仅本地与 CI 构建 |
+| `tinytheme_tests` | 控制台可执行文件 | 单元测试，仅本地与 CI 构建；使用 `tests/third_party/doctest` |
+
+> v0.1 的 `tests/` 只覆盖配置解析、模式映射等纯逻辑；`solar` / `scheduler` / `hotkey` 测试随 v0.2 模块引入。
 
 ## 3. CMake 配置
 
 ```cmake
 cmake_minimum_required(VERSION 3.28)
-project(TinyTheme VERSION 0.1.0 LANGUAGES CXX)
+project(TinyTheme VERSION 0.1.0 LANGUAGES CXX RC)
 
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -50,31 +52,32 @@ add_executable(TinyTheme WIN32
     src/tray.cpp
     src/menu.cpp
     src/theme.cpp
-    src/scheduler.cpp
-    src/solar.cpp
     src/config.cpp
-    src/hotkey.cpp  # v0.2
     src/toast.cpp
     src/log.cpp
-    res/app.rc)
+    src/util.cpp
+    ${CMAKE_CURRENT_BINARY_DIR}/app.rc)
+
+# v0.1 不加入 scheduler.cpp / solar.cpp / hotkey.cpp；v0.2 再加。
 
 target_compile_definitions(TinyTheme PRIVATE
     UNICODE _UNICODE WIN32_LEAN_AND_MEAN NOMINMAX)
 
 target_compile_options(TinyTheme PRIVATE
-    /W4 /WX /permissive- /utf-8 /EHsc /GR-
-    /O2 /Oi /Gy /Gw /GL /Brepro)
+    /W4 /WX /permissive- /utf-8 /EHsc /GR- /Brepro
+    /O2 /Oi /Gy /Gw /GL)
 
 target_link_options(TinyTheme PRIVATE
     /SUBSYSTEM:WINDOWS /LTCG /OPT:REF /OPT:ICF
     /INCREMENTAL:NO /MANIFEST:EMBED
+    /MANIFESTINPUT:${CMAKE_CURRENT_SOURCE_DIR}/res/app.manifest
     /DYNAMICBASE /NXCOMPAT /HIGHENTROPYVA)
 
 set_property(TARGET TinyTheme PROPERTY
     MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
 
 target_link_libraries(TinyTheme PRIVATE
-    user32 shell32 advapi32 gdi32 dwmapi shlwapi)
+    user32 shell32 advapi32 gdi32 dwmapi shlwapi ole32)
 
 enable_testing()
 add_subdirectory(tests)
@@ -102,54 +105,104 @@ Debug 配置关闭 `/GL`、`/LTCG`、`/O2`，改用 `/Od /Zi /RTC1`，链接 `/D
 
 ## 5. CMake Presets
 
+### 5.1 生成器与编译器的关系
+
+`"generator": "Ninja"` 只指定**构建执行器**，不指定编译器。CMake 会在当前 `PATH` 里找第一个可用的编译器，所以同一个预设可能编出完全不同的产物：
+
+| 执行方式 | 编译器 | 结果 |
+|---|---|---|
+| `pwsh -File tools/build.ps1 -Preset x64-release` | 脚本先调 `vcvarsall.bat x64`，MSVC 排到 `PATH` 前面 | MSVC ✅ |
+| 普通终端 `cmake --preset x64-release` | `PATH` 里若先有 MinGW 的 `g++.exe` | MinGW ❌ |
+
+因此预设里**显式钉死编译器**：
+
+```json
+"cacheVariables": {
+  "CMAKE_BUILD_TYPE": "Release",
+  "CMAKE_CXX_COMPILER": "cl",
+  "CMAKE_RC_COMPILER": "rc"
+}
+```
+
+这样在没有 `vcvars` 的环境里运行会立刻报 `CMAKE_CXX_COMPILER: cl ... not found in the PATH`，而不是静默换成 MinGW。
+
+### 5.2 为什么主用 Ninja 而不是 Visual Studio 生成器
+
+| 维度 | Ninja | Visual Studio 17 2022 |
+|---|---|---|
+| `compile_commands.json` | 支持，clang-tidy 直接可读 | **不支持**，CI 的静态分析门禁需要额外造编译数据库 |
+| 增量构建 | 快，启动开销小 | 慢一些 |
+| 产物路径 | `build/<preset>/TinyTheme.exe` | `build/<preset>/Release/TinyTheme.exe`（多一层） |
+| 环境要求 | 需要 `vcvars` 提供 `cl` | MSBuild 自己找工具链，无需 `vcvars` |
+| IDE 集成 | 一般 | 好 |
+
+结论：**CI 与发布用 Ninja**（单配置、路径简单、支持 compile_commands）；Visual Studio 生成器作为受限环境或 IDE 调试的备选。
+
+### 5.3 预设一览
+
+| 预设 | 生成器 | 用途 |
+|---|---|---|
+| `x64-debug` | Ninja | 本地调试，需 `vcvars64` |
+| `x64-release` | Ninja | CI、发布主路径，需 `vcvars64` |
+| `arm64-release` | Ninja | ARM64，需 `vcvarsall arm64` 与 ARM64 工具集 |
+| `vs2022-x64-release` | Visual Studio 17 2022 | 无需 `vcvars`；受限环境、IDE；不产出 `compile_commands.json` |
+
 ```json
 {
   "version": 6,
   "configurePresets": [
     {
       "name": "x64-release",
+      "displayName": "x64 Release (MSVC + Ninja)",
       "generator": "Ninja",
       "binaryDir": "${sourceDir}/build/x64-release",
-      "architecture": { "value": "x64", "strategy": "external" },
-      "cacheVariables": { "CMAKE_BUILD_TYPE": "Release" }
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "CMAKE_CXX_COMPILER": "cl",
+        "CMAKE_RC_COMPILER": "rc"
+      }
     },
     {
-      "name": "x64-debug",
-      "generator": "Ninja",
-      "binaryDir": "${sourceDir}/build/x64-debug",
-      "architecture": { "value": "x64", "strategy": "external" },
-      "cacheVariables": { "CMAKE_BUILD_TYPE": "Debug" }
-    },
-    {
-      "name": "arm64-release",
-      "generator": "Ninja",
-      "binaryDir": "${sourceDir}/build/arm64-release",
-      "architecture": { "value": "arm64", "strategy": "external" },
-      "cacheVariables": { "CMAKE_BUILD_TYPE": "Release" }
+      "name": "vs2022-x64-release",
+      "displayName": "x64 Release (Visual Studio 2022)",
+      "generator": "Visual Studio 17 2022",
+      "architecture": { "value": "x64", "strategy": "set" },
+      "binaryDir": "${sourceDir}/build/vs2022-x64-release"
     }
   ],
   "buildPresets": [
     { "name": "x64-release", "configurePreset": "x64-release" },
-    { "name": "x64-debug", "configurePreset": "x64-debug" },
-    { "name": "arm64-release", "configurePreset": "arm64-release" }
+    {
+      "name": "vs2022-x64-release",
+      "configurePreset": "vs2022-x64-release",
+      "configuration": "Release"
+    }
   ],
   "testPresets": [
     {
       "name": "x64-release",
       "configurePreset": "x64-release",
       "output": { "outputOnFailure": true }
+    },
+    {
+      "name": "vs2022-x64-release",
+      "configurePreset": "vs2022-x64-release",
+      "configuration": "Release",
+      "output": { "outputOnFailure": true }
     }
   ]
 }
 ```
 
+
 ## 6. 资源与 manifest
 
 ### app.rc
 
+- `app.rc.in` 由 CMake 生成到构建目录，图标使用绝对路径，避免 `rc.exe` 工作目录差异。
 - `ICON`：`IDI_LIGHT`、`IDI_DARK` 两套图标，各含 16 / 20 / 24 / 32 四种尺寸；由 `res/*.svg` 生成后入库，流程见 [图标生成](10-icon-pipeline.md)。
 - `VERSIONINFO`：版本号由 CMake 生成，禁止手工维护。
-- `STRINGTABLE`：`zh-CN` 与 `en-US` 两份；`IDS_TOAST_HOTKEY_FAIL`（203）随 F-02 于 v0.2 加入。
+- `STRINGTABLE`：v0.1 只出 `zh-CN`；`IDS_TOAST_HOTKEY_FAIL`（203）随 F-02 于 v0.2 加入。
 
 ### app.manifest
 
@@ -209,12 +262,33 @@ clang-tidy -p build/x64-debug src/app.cpp
 | 版本资源 | 文件属性 → 详细信息 | 与 tag 一致 |
 | 签名 | `Get-AuthenticodeSignature` | `Valid` |
 
+## 9.1 实测数据
+
+> 记录规则：这里只写**实测值**；目标值见上表，不要把目标值抄进来。每次发布前追加一行。
+
+### v0.1.0（2026-11-01，x64 Release，VS 2022 生成器）
+
+| 项 | 实测 | 备注 |
+|---|---|---|
+| 体积 | 257,024 字节（251 KB） | `D:\coding\build\TinyTheme\build-vs2022\Release\TinyTheme.exe` |
+| 依赖 | USER32 / SHELL32 / ADVAPI32 / ole32 / KERNEL32 | `/MT` 生效，无 VCRUNTIME |
+| 导入表 | 无 WS2_32 / WININET / WINHTTP / URLMON | 不发起网络请求 |
+| 常驻工作集 | 6.7 MB | 用户实测，满足 < 10 MB |
+| 版本资源 | 0.1.0（TinyTheme / TinyTheme 0.1.0） | 与 `CMakeLists.txt` 一致 |
+| 签名 | NotSigned | 本地 RC 阶段，公开发布前必须签名 |
+| 冷启动 | 待测 | 需在真实桌面用 QPC 日志或屏幕录制 |
+| 句柄数 / GDI / 线程 | 待测 | 需运行中采样 |
+| 空闲 CPU | 待测 | 需 60 s 采样 |
+
 ## 10. 常见构建问题
 
 | 现象 | 原因 | 处理 |
 |---|---|---|
-| `cl.exe` 找不到 | 未在 VS 开发者命令行 | 用 Native Tools 命令提示符 |
+| `cl.exe` 找不到 | 未在 VS 开发者命令行 | 用 Native Tools 命令提示符，或 `pwsh -File tools/build.ps1`（内部调用 `vcvarsall.bat`） |
 | 中文乱码 | 源文件编码或 `/utf-8` 缺失 | 统一 UTF-8 + `/utf-8` |
 | `wWinMain` 链接错误 | 未加 `WIN32` 或子系统不对 | 检查 `add_executable(... WIN32 ...)` |
-| 资源编译失败 | `.rc` 引用的图标路径错误 | 检查相对路径与文件名 |
-| ARM64 链接失败 | 缺少 ARM64 版库 | 确认 VS 安装了 ARM64 组件 |
+| 资源编译失败 | `.rc` 引用的图标路径错误 | `app.rc` 由 CMake 生成，图标用绝对路径；检查 `res/*.ico` 是否存在 |
+| ARM64 链接失败 | 缺少 ARM64 版库 | 确认 VS 安装了 ARM64 组件；本机未安装时用 CI |
+| `ninja` 挂起、configure 卡在 ABI 检测 | 受限沙箱禁止子进程命名管道，ninja 无法回收编译输出 | 该环境用 `cmake -G "NMake Makefiles"` 或 `-G "Visual Studio 17 2022"` 构建；CI 与正常桌面仍用 Ninja |
+| 运行时报"无法创建托盘图标"，日志是 `NIM_ADD` 错误 5 | 在低权限工作区/受限沙箱里直接运行，进程无法与资源管理器交互 | 把 exe 复制到普通目录再运行；这是运行环境限制，不是程序缺陷 |
+| 双击 exe 出现"Windows 已保护你的电脑" | 未签名构建触发 SmartScreen | 本地测试点"更多信息 → 仍要运行"；对外分发必须先签名 |

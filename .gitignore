@@ -1,3 +1,9 @@
 # 构建产物
 build/
 res/build/
+.vs/
+*.user
+out/
+*.log
+dist/
+

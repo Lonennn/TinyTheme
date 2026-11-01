@@ -33,8 +33,8 @@ TinyTheme.exe
 | `WM_APP + 100` | 托盘回调 | 分发 `NIN_SELECT` / `WM_CONTEXTMENU` / `NIN_KEYSELECT` |
 | `WM_HOTKEY`（v0.2） | `RegisterHotKey` | 执行切换 |
 | `WM_TIMER`（id=1） | 调度器 | 执行计划切换并重排下一次 |
-| `WM_SETTINGCHANGE` | 系统或自身广播 | 主题 / 高对比度变化，刷新图标与菜单 |
-| `WM_POWERBROADCAST` | 系统 | 唤醒后重算计划切换点，必要时补偿 |
+| `WM_SETTINGCHANGE` | 系统或自身广播 | 主题变化：v0.1 更新状态/菜单；自身切换后刷新图标（外部变化图标刷新留 v0.2） |
+| `WM_POWERBROADCAST`（v0.2） | 系统 | 唤醒后重算计划切换点，必要时补偿 |
 | `WM_ENDSESSION` | 系统 | 保存配置 |
 | `WM_DISPLAYCHANGE` | 系统 | DPI 变化时重载托盘图标 |
 | `WM_CLOSE` | 系统 | 忽略，只允许通过菜单退出 |
@@ -61,6 +61,8 @@ TinyTheme.exe
     └──────────┘    └───────────┘    └──────────┘
 ```
 
+> v0.1 只实现 `App`、`Tray`、`Menu`、`ThemeEngine`、`Config`、`Toast`、`Log`、`Util`；`Scheduler` / `Solar` / `Hotkey` 从 v0.2 引入。配置与开机自启的注册表操作放在 `Config`/`App` 内，不新增常驻模块。
+
 依赖方向：`App` 依赖各功能模块，功能模块之间不互相依赖，只通过 `App` 协调。
 
 `Hotkey` 模块自 v0.2 引入；v0.1 不注册全局热键，也不处理 `WM_HOTKEY`。
@@ -79,7 +81,7 @@ TinyTheme.exe
    → App 更新内存状态
 ```
 
-### 自动切换
+### 自动切换（v0.2）
 
 ```
 Scheduler 定时器到期
@@ -109,7 +111,7 @@ WM_SETTINGCHANGE("ImmersiveColorSet")
 4. 创建托盘图标（先显示默认图标）。
 5. 注册全局热键（v0.2；失败则记录并提示，降级为仅托盘切换）。
 6. 读取当前主题，刷新图标与菜单状态。
-7. 若模式为自动，计算当前应有主题；与现状不一致则应用，然后排定下一次切换。
+7. v0.1：以注册表实际主题同步 `mode` 与菜单，不写主题；v0.2 若模式为自动，计算当前应有主题并在不一致时应用。
 8. 首次运行时弹出引导气泡。
 
 ### 退出
@@ -151,9 +153,9 @@ TinyTheme/
 │   ├── tray.h/.cpp       托盘图标
 │   ├── menu.h/.cpp       右键菜单
 │   ├── theme.h/.cpp      注册表读写与广播
-│   ├── scheduler.h/.cpp  计划切换
-│   ├── solar.h/.cpp      日出日落计算
-│   ├── config.h/.cpp     INI 读写
+│   ├── scheduler.h/.cpp  计划切换（v0.2）
+│   ├── solar.h/.cpp      日出日落计算（v0.2）
+│   ├── config.h/.cpp     INI 读写、路径与自启
 │   ├── hotkey.h/.cpp     全局热键（v0.2）
 │   ├── toast.h/.cpp      气泡提示
 │   ├── log.h/.cpp        日志
