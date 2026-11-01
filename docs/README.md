@@ -4,14 +4,17 @@
 
 ## 目录结构
 
-| 目录 | 内容 | 主要读者 |
+| 位置 | 内容 | 主要读者 |
 |---|---|---|
+| `usage.md` | 用户手册：怎么用、怎么配、出问题怎么查 | 使用者 |
+| `images/` | README 与文档引用的截图 | 所有人 |
 | `product/` | 为什么做、给谁做、做成什么样 | 产品、设计、开发 |
 | `engineering/` | 怎么实现、怎么构建、怎么交付 | 开发、测试、发布 |
 | `decisions/` | 关键技术决策记录（ADR） | 所有人 |
 
 ## 阅读顺序
 
+- 只想用起来：`usage.md`
 - 第一次接触：`product/01-overview.md` → `product/03-feature-spec.md` → `engineering/01-architecture.md` → `engineering/02-tech-stack.md`
 - 参与开发：`engineering/` 全部，按编号顺序读一遍再动手
 - 只关心交互：`product/04-interaction-design.md`
