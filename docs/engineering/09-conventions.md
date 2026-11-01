@@ -4,7 +4,7 @@
 
 ## 1. 文件与编码
 
-- 源文件统一 UTF-8（无 BOM），行尾 LF，`.gitattributes` 中声明 `* text=auto eol=lf`。
+- 源文件统一 UTF-8（无 BOM），行尾 LF；`.gitattributes` 声明 `* text=auto eol=lf`，图标等二进制文件标注 `binary`。
 - 头文件使用 `#pragma once`。
 - 文件名小写下划线：`theme_engine.cpp`、`config.h`。
 - 单文件不超过 500 行，超过则拆分。
