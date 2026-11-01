@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32">
+  <!--
+    月亮：深色主题（深色任务栏），浅色描边。
+    外圆 r=10 圆心 (16,16)，挖去 r=9 圆心 (18.5,13.5) 的圆，缺口朝右上。
+    交点 (12.8193,6.5193) 与 (25.4807,19.1807)：
+      外弧 A→B 走左下方，跨 233°，large-arc=1、sweep=0；
+      内弧 B→A 沿内圆走近左下方，跨 192°，large-arc=1、sweep=1。
+    月牙最厚处约 4.54，最薄处收敛于两个交点（月牙尖）。
+    规范见 docs/product/06-icon-design.md
+  -->
+  <path d="M 12.8193 6.5193 A 10 10 0 1 0 25.4807 19.1807 A 9 9 0 1 1 12.8193 6.5193 Z"
+        fill="none" stroke="#FFFFFF" stroke-width="2" stroke-linejoin="round"/>
+</svg>
