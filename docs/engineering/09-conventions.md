@@ -88,6 +88,18 @@ chore(ci): 固定 windows-2025 runner
 - 功能分支：`feat/tray-icon`、`fix/hotkey-conflict`。
 - 合并方式：squash merge，保持主干线性。
 
+### 本地钩子
+
+钩子脚本在 `.githooks/`，克隆后执行一次即可启用：
+
+```
+pwsh -File tools/install-hooks.ps1
+```
+
+- `pre-commit`：把暂存的 C++ 文件用 clang-format 修好并重新暂存；做不到时（工作区存在未暂存改动、找不到 clang-format）给出明确提示。
+
+钩子只是快速反馈，`git commit --no-verify` 可以绕过；真正阻断合并的是 CI。本地 clang-format 与 CI 镜像版本不一致时以 CI 为准（当前镜像为 20.1.8）。
+
 ## 9. 代码评审
 
 评审关注：

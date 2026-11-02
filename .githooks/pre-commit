@@ -1,0 +1,9 @@
+#!/bin/sh
+# Git 在 Windows 上通过 sh 执行钩子，检查逻辑放在 pre-commit.ps1 里。
+# 找不到 pwsh 就放行：钩子只是快速反馈，不该因为环境缺失把人挡在提交之外。
+root=$(git rev-parse --show-toplevel) || exit 0
+if ! command -v pwsh >/dev/null 2>&1; then
+    echo "pre-commit: 未找到 pwsh，跳过本地检查" >&2
+    exit 0
+fi
+exec pwsh -NoProfile -File "$root/.githooks/pre-commit.ps1"
