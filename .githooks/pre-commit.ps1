@@ -50,6 +50,20 @@ if ($sourceFiles.Count -gt 0)
     }
 }
 
+# ---- 行尾空白与冲突标记 ----
+# --check 只看本次新增的行：行尾空白、空白行末、空格缩进，以及没清理的冲突标记。
+$whitespace = & git diff --cached --check 2>&1
+if ($LASTEXITCODE -ne 0)
+{
+    foreach ($line in @($whitespace))
+    {
+        if ($line)
+        {
+            $failures.Add([string]$line)
+        }
+    }
+}
+
 if ($failures.Count -gt 0)
 {
     Write-Host ''
