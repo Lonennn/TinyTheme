@@ -64,6 +64,36 @@ if ($LASTEXITCODE -ne 0)
     }
 }
 
+# ---- 编码与换行 ----
+# 约定源文件 UTF-8 无 BOM；BOM 会让 diff、编译诊断与部分工具显示出多余的字符。
+$binary = '\.(ico|png|jpg|jpeg|gif|zip|exe|dll|lib|pdb|res|obj)$'
+foreach ($file in @($staged | Where-Object { $_ -notmatch $binary }))
+{
+    if (-not (Test-Path -LiteralPath $file))
+    {
+        continue
+    }
+    $head = @(Get-Content -LiteralPath $file -AsByteStream -TotalCount 3)
+    if ($head.Count -eq 3 -and $head[0] -eq 0xEF -and $head[1] -eq 0xBB -and $head[2] -eq 0xBF)
+    {
+        $failures.Add("$file 带 UTF-8 BOM，按约定应去掉")
+    }
+}
+
+# 索引里出现 CR：`.gitattributes` 声明了 * text=auto eol=lf，正常不该有；
+# 真有说明某个路径被标成了 binary 或 -text。查索引而不是工作区，避免编辑器换行风格误报。
+$crlf = & git grep --cached -I -l -P '\r' -- $staged 2>$null
+if ($LASTEXITCODE -eq 0)
+{
+    foreach ($line in @($crlf))
+    {
+        if ($line)
+        {
+            $failures.Add("$line 在索引里是 CRLF，应统一 LF")
+        }
+    }
+}
+
 if ($failures.Count -gt 0)
 {
     Write-Host ''
