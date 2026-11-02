@@ -16,7 +16,9 @@ if ($staged.Count -eq 0)
 $failures = [System.Collections.Generic.List[string]]::new()
 
 # ---- 格式：clang-format 直接修好并重新暂存 ----
-$sourceFiles = @($staged | Where-Object { $_ -match '\.(cpp|h)$' })
+# third_party 与 CI 的格式检查保持一致，不参与；超大源文件跳过（clang-format 会在
+# 这类文件上卡住，而正常源文件到不了这个体积）。
+$sourceFiles = @($staged | Where-Object { $_ -match '\.(cpp|h)$' -and $_ -notmatch '(^|/)third_party/' })
 if ($sourceFiles.Count -gt 0)
 {
     if (-not (Get-Command clang-format -ErrorAction SilentlyContinue))
@@ -28,6 +30,11 @@ if ($sourceFiles.Count -gt 0)
         $reformatted = @()
         foreach ($file in $sourceFiles)
         {
+            if ((Get-Item -LiteralPath $file -ErrorAction SilentlyContinue).Length -gt 512KB)
+            {
+                Write-Host "pre-commit: $file 超过 512 KB，跳过格式检查" -ForegroundColor DarkYellow
+                continue
+            }
             # 工作区与暂存内容不一致时，-i 会把未暂存的改动一起搅进这次提交。
             if (@(& git diff --name-only -- $file).Count -gt 0)
             {
@@ -91,6 +98,24 @@ if ($LASTEXITCODE -eq 0)
         {
             $failures.Add("$line 在索引里是 CRLF，应统一 LF")
         }
+    }
+}
+
+# ---- 体积与二进制 ----
+# 仓库里最大的文件是 354 KB 的 doctest.h，图标都在 50 KB 以内；到这里基本是误提交。
+$maxBytes = 1MB
+$forbidden = '\.(exe|dll|obj|lib|pdb|res|ilk|exp|zip|7z|msi|msix|nupkg)$'
+$size = [long]0
+foreach ($file in $staged)
+{
+    $raw = (& git cat-file -s ":$file" | Select-Object -First 1)
+    if ([long]::TryParse("$raw", [ref]$size) -and $size -gt $maxBytes)
+    {
+        $failures.Add(('{0} 有 {1:N1} MiB，超过 1 MiB 上限，确认不是误提交' -f $file, ($size / 1MB)))
+    }
+    if ($file -match $forbidden)
+    {
+        $failures.Add("$file 是构建产物或压缩包，不应入库")
     }
 }
 
