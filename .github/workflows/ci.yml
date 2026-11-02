@@ -21,9 +21,10 @@ jobs:
         uses: ilammy/msvc-dev-cmd@v1
         with:
           # vcvarsall 的参数是“宿主机_目标机”。裸 arm64 表示在 ARM64 宿主机上原生编译，
-          # x64 runner 上它既不报错、也给不出编译器。vsversion 钉住，CI 才验证文档里的 v143。
+          # x64 runner 上它既不报错、也给不出编译器。
+          # 不钉 vsversion：插件的年份表止于 2022，而 windows-2025 现在由
+          # windows-2025-vs2026 承载（VS 18 / MSVC 14.51），钉住只会让它找不到 VS。
           arch: ${{ startsWith(matrix.preset, 'arm64') && 'amd64_arm64' || 'amd64' }}
-          vsversion: '17.0'
 
       - name: Verify toolchain
         shell: pwsh
@@ -37,6 +38,7 @@ jobs:
           }
           Write-Host "cl: $cl"
           Write-Host "VSCMD_ARG_HOST_ARCH=$env:VSCMD_ARG_HOST_ARCH TGT_ARCH=$env:VSCMD_ARG_TGT_ARCH"
+          Write-Host "VCToolsVersion=$env:VCToolsVersion VSCMD_VER=$env:VSCMD_VER VisualStudioVersion=$env:VisualStudioVersion"
           $expected = ('${{ matrix.preset }}' -like 'arm64*') ? 'arm64' : 'x64'
           if ($cl -notmatch "\\$expected\\cl\.exe$") {
             Write-Error "cl 不是 $expected 目标：$cl"

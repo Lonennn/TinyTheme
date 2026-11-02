@@ -40,6 +40,7 @@
 - CI 用 **Ninja** 预设，因为 Visual Studio 生成器不产出 `compile_commands.json`，clang-tidy 门禁会失效。
 - 体积只记录不阻断，作为版本间对比基线。
 - ARM64 工件是**跨编译**，`vcvarsall` 里写作 `amd64_arm64`。裸 `arm64` 表示在 ARM64 宿主机上原生编译，x64 runner 上既不报错也拿不到编译器；目标工具集缺失时它还会静默退回 x64 编译器，所以构建前要核对 `cl` 的目标架构。
+- 不要给 `ilammy/msvc-dev-cmd` 钉 `vsversion`：它的年份表止于 2022，而 `windows-2025` 现在由 `windows-2025-vs2026` 承载（VS 18 / MSVC 14.51），钉住只会得到 `Microsoft Visual Studio not found`。CI 跟随镜像最新工具链，`02-tech-stack` 里的 v143 是本地最低要求，不是 CI 的验证目标。
 
 ## 3. 代码签名
 
