@@ -34,7 +34,7 @@ target_compile_definitions(TinyTheme PRIVATE
 
 if (MSVC)
     target_compile_options(TinyTheme PRIVATE
-        /W4 /WX /permissive- /utf-8 /EHsc /GR- /Brepro)
+        /W4 /WX /permissive- /utf-8 /EHsc /GR- /Brepro /sdl)
 
     target_compile_options(TinyTheme PRIVATE
         $<$<CONFIG:Release>:/O2>
@@ -49,6 +49,7 @@ if (MSVC)
         $<$<CONFIG:Debug>:/RTC1>)
 
     target_link_options(TinyTheme PRIVATE
+        /WX
         /SUBSYSTEM:WINDOWS
         /INCREMENTAL:NO
         /MANIFEST:EMBED

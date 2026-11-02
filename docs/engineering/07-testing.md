@@ -76,7 +76,7 @@ v0.2 补充：`TC-SOL-*`（日出日落）、`TC-SCH-*`（调度）、`TC-HK-*`�
 
 ## 5. 门禁
 
-CI 中失败即阻断：`/W4 /WX` 零警告、单元测试全过、clang-format 无 diff、clang-tidy 无 error、依赖仅系统 DLL。
+CI 中失败即阻断：编译与链接零告警（`/W4 /WX /sdl`，链接器同开 `/WX`）、单元测试全过、clang-format 无 diff、clang-tidy 无 error、依赖仅系统 DLL。
 
 体积不设门禁：CI 只记录每次构建的体积作为版本间基线，明显膨胀在评审时说明。
 

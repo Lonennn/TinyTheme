@@ -19,7 +19,9 @@ target_compile_definitions(tinytheme_tests PRIVATE
 
 if (MSVC)
     target_compile_options(tinytheme_tests PRIVATE
-        /W4 /WX /permissive- /utf-8 /EHsc /GR-)
+        /W4 /WX /permissive- /utf-8 /EHsc /GR- /sdl)
+
+    target_link_options(tinytheme_tests PRIVATE /WX)
 
     target_compile_options(tinytheme_tests PRIVATE
         $<$<CONFIG:Debug>:/Od>
