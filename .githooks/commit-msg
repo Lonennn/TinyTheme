@@ -1,0 +1,7 @@
+#!/bin/sh
+# 校验提交标题。真正的检查在 commit-msg.ps1 里，这里只负责找到 pwsh 并把消息文件传过去。
+root=$(git rev-parse --show-toplevel) || exit 0
+if ! command -v pwsh >/dev/null 2>&1; then
+    exit 0
+fi
+exec pwsh -NoProfile -File "$root/.githooks/commit-msg.ps1" "$1"

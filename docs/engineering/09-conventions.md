@@ -100,6 +100,7 @@ pwsh -File tools/install-hooks.ps1
 - `pre-commit` 空白与冲突标记：`git diff --cached --check`，只报本次新增的行。
 - `pre-commit` 编码与换行：拒绝 UTF-8 BOM，以及索引里残留的 CRLF（查索引而不是工作区，避免编辑器换行风格误报）。
 - `pre-commit` 体积与二进制：单文件超过 1 MiB，或出现 `.exe` / `.obj` / `.pdb` 这类构建产物，直接拒绝。
+- `commit-msg` 提交标题：`type(scope): subject`，`type` 限 Conventional Commits 的集合，标题不超过 72 字符；`Merge` / `Revert` / `fixup!` 之类放行。
 
 钩子只是快速反馈，`git commit --no-verify` 可以绕过；真正阻断合并的是 CI。本地 clang-format 与 CI 镜像版本不一致时以 CI 为准（当前镜像为 20.1.8）。
 
