@@ -9,7 +9,7 @@
 | 层次 | 选型 | 版本 |
 |---|---|---|
 | 语言 | C++ | C++23 |
-| 编译器 | MSVC（Visual Studio Build Tools） | v143，19.40+（CI 跟随镜像最新） |
+| 编译器 | MSVC（Visual Studio Build Tools） | v143，19.40+ |
 | SDK | Windows SDK | 10.0.26100 |
 | UI | 原生 Win32 API | — |
 | 构建系统 | CMake + Ninja | CMake 3.28+，Ninja 1.11+ |

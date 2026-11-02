@@ -8,11 +8,30 @@ on:
 
 jobs:
   build:
-    runs-on: windows-2025
+    name: build (${{ matrix.preset }} on ${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
-        preset: [x64-release, arm64-release]
+        include:
+          # 主路径：最新镜像的 Release，唯一跑全集（单测、格式、依赖、体积）的变体
+          - os: windows-2025
+            preset: x64-release
+            test: true
+            checks: true
+            upload: true
+          # Debug：/RTC1、断言、迭代器调试只在 Debug 生效
+          - os: windows-2025
+            preset: x64-debug
+            test: true
+          # 跨架构：只验证能编出 ARM64
+          - os: windows-2025
+            preset: arm64-release
+            upload: true
+          # 最低工具链：v143 只存在于 windows-2022，windows-2025 已换成 VS 2026
+          - os: windows-2022
+            preset: x64-release
+            test: true
 
     steps:
       - uses: actions/checkout@v4
@@ -53,11 +72,11 @@ jobs:
         run: cmake --build --preset ${{ matrix.preset }}
 
       - name: Test
-        if: matrix.preset == 'x64-release'
-        run: ctest --preset x64-release
+        if: matrix.test
+        run: ctest --preset ${{ matrix.preset }}
 
       - name: Format check
-        if: matrix.preset == 'x64-release'
+        if: matrix.checks
         shell: pwsh
         run: |
           $files = Get-ChildItem src,tests -Recurse -Include *.cpp,*.h |
@@ -76,7 +95,7 @@ jobs:
           }
 
       - name: Dependency check
-        if: matrix.preset == 'x64-release'
+        if: matrix.checks
         shell: pwsh
         run: |
           $exe = 'build/x64-release/TinyTheme.exe'
@@ -93,7 +112,7 @@ jobs:
           }
 
       - name: Size report
-        if: matrix.preset == 'x64-release'
+        if: matrix.checks
         shell: pwsh
         run: |
           $size = (Get-Item 'build/x64-release/TinyTheme.exe').Length
@@ -102,6 +121,9 @@ jobs:
           Add-Content -LiteralPath $env:GITHUB_STEP_SUMMARY -Value "`n`n| 日期 | 体积(字节) | 提交 |`n|---|---|---|`n$line"
 
       - name: Upload artifact
+        # 只有主路径与 ARM64 变体上传：同名 artifact 不能重复，
+        # windows-2022 那一条只用来验证工具链。
+        if: matrix.upload
         uses: actions/upload-artifact@v4
         with:
           name: TinyTheme-${{ matrix.preset }}

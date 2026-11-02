@@ -35,12 +35,26 @@
 | 发布 | tag | 创建 GitHub Release、上传产物、更新 CHANGELOG |
 | 分发 | 发布后 | 提交 winget manifest、更新 Scoop bucket |
 
-三条容易忘的约束：
+### 编译矩阵
+
+四个变体，每个都有存在理由：
+
+| 变体 | 镜像 | 预设 | 为什么要有 |
+|---|---|---|---|
+| 主路径 | `windows-2025` | `x64-release` | 唯一跑全集的变体：单测、格式检查、依赖与导入、体积 |
+| Debug | `windows-2025` | `x64-debug` | `/RTC1`、断言、迭代器调试只在 Debug 生效，Release 完全看不到 |
+| 跨架构 | `windows-2025` | `arm64-release` | ARM64 交叉编译能否成立；只验证编得出来 |
+| 最低工具链 | `windows-2022` | `x64-release` | 文档承诺的 v143 只剩 2022 镜像上还有，2025 已换成 VS 2026 |
+
+格式、依赖、体积与架构和配置无关，只在主路径跑一遍；Debug 与 v143 两条验构建与单测。
+ARM64 与主路径上传 artifact，v143 那条不上传——同名 artifact 不能重复。
+
+四条容易忘的约束：
 
 - CI 用 **Ninja** 预设，因为 Visual Studio 生成器不产出 `compile_commands.json`，clang-tidy 门禁会失效。
 - 体积只记录不阻断，作为版本间对比基线。
 - ARM64 工件是**跨编译**，`vcvarsall` 里写作 `amd64_arm64`。裸 `arm64` 表示在 ARM64 宿主机上原生编译，x64 runner 上既不报错也拿不到编译器；目标工具集缺失时它还会静默退回 x64 编译器，所以构建前要核对 `cl` 的目标架构。
-- 不要给 `ilammy/msvc-dev-cmd` 钉 `vsversion`：它的年份表止于 2022，而 `windows-2025` 现在由 `windows-2025-vs2026` 承载（VS 18 / MSVC 14.51），钉住只会得到 `Microsoft Visual Studio not found`。CI 跟随镜像最新工具链，`02-tech-stack` 里的 v143 是本地最低要求，不是 CI 的验证目标。
+- 不要给 `ilammy/msvc-dev-cmd` 钉 `vsversion`：它的年份表止于 2022，而 `windows-2025` 现在由 `windows-2025-vs2026` 承载（VS 18 / MSVC 14.51），钉住只会得到 `Microsoft Visual Studio not found`。要覆盖 v143 就换镜像，不要钉版本。
 
 ## 3. 代码签名
 
