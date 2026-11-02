@@ -49,8 +49,17 @@ TEST_CASE("logger writes a line to the configured file")
 
 TEST_CASE("logger falls back to the module directory when the primary path is not writable")
 {
-    const auto primary =
-        std::filesystem::path(L"C:\\Windows\\System32\\drivers\\etc\\tinytheme-probe\\app.log");
+    // 不用 C:\Windows\System32 这类系统目录来构造“写不进去”：托管 CI runner 以管理员身份
+    // 运行，那些目录照样能写，用例就退化成在测“跑测试的人是不是管理员”。
+    // 父路径是普通文件时，create_directories 与 CreateFile 在任何身份下都必然失败。
+    const auto blocker = scratch_dir() / L"not-a-directory";
+    {
+        std::ofstream file(blocker, std::ios::binary);
+        REQUIRE(file.good());
+        file << "blocker";
+    }
+    const auto primary = blocker / L"app.log";
+
     const auto module = util::module_path();
     REQUIRE(module.has_value());
     const auto fallback = module->parent_path() / L"logs" / L"app.log";

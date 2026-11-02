@@ -20,7 +20,29 @@ jobs:
       - name: Setup MSVC
         uses: ilammy/msvc-dev-cmd@v1
         with:
-          arch: ${{ startsWith(matrix.preset, 'arm64') && 'arm64' || 'x64' }}
+          # vcvarsall 的参数是“宿主机_目标机”。裸 arm64 表示在 ARM64 宿主机上原生编译，
+          # x64 runner 上它既不报错、也给不出编译器。vsversion 钉住，CI 才验证文档里的 v143。
+          arch: ${{ startsWith(matrix.preset, 'arm64') && 'amd64_arm64' || 'amd64' }}
+          vsversion: '17.0'
+
+      - name: Verify toolchain
+        shell: pwsh
+        run: |
+          # 目标工具集缺失时 vcvarsall 会静默退回 x64 编译器，所以不能只看上一步是否成功；
+          # 也不能靠 cl 的版本横幅——中文 VS 下那是本地化文本。用解析到的编译器路径判断。
+          $cl = (Get-Command cl -ErrorAction SilentlyContinue).Source
+          if (-not $cl) {
+            Write-Error 'cl 不在 PATH 上'
+            exit 1
+          }
+          Write-Host "cl: $cl"
+          Write-Host "VSCMD_ARG_HOST_ARCH=$env:VSCMD_ARG_HOST_ARCH TGT_ARCH=$env:VSCMD_ARG_TGT_ARCH"
+          $expected = ('${{ matrix.preset }}' -like 'arm64*') ? 'arm64' : 'x64'
+          if ($cl -notmatch "\\$expected\\cl\.exe$") {
+            Write-Error "cl 不是 $expected 目标：$cl"
+            exit 1
+          }
+          exit 0
 
       - name: Configure
         run: cmake --preset ${{ matrix.preset }}

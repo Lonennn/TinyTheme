@@ -35,10 +35,11 @@
 | 发布 | tag | 创建 GitHub Release、上传产物、更新 CHANGELOG |
 | 分发 | 发布后 | 提交 winget manifest、更新 Scoop bucket |
 
-两条容易忘的约束：
+三条容易忘的约束：
 
 - CI 用 **Ninja** 预设，因为 Visual Studio 生成器不产出 `compile_commands.json`，clang-tidy 门禁会失效。
 - 体积只记录不阻断，作为版本间对比基线。
+- ARM64 工件是**跨编译**，`vcvarsall` 里写作 `amd64_arm64`。裸 `arm64` 表示在 ARM64 宿主机上原生编译，x64 runner 上既不报错也拿不到编译器；目标工具集缺失时它还会静默退回 x64 编译器，所以构建前要核对 `cl` 的目标架构。
 
 ## 3. 代码签名
 
